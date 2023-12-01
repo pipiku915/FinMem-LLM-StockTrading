@@ -1,0 +1,82 @@
+[env]
+start_time = "2021-08-15"
+end_time = "2023-08-15"
+
+[agent]
+[agent.agent_1]
+[agent.agent_1.chat]
+endpoint = "open-ai"
+model_name = "gpt-4-1106-preview"
+temperature = 0.7
+[agent.agent_1.general]
+use_gpu = false
+top_k = 5
+
+# You are an investor with a tendency toward risk seeking, which means you are inclined towards making investments that have a high level of uncertainty but also the potential for high returns.
+# In the realm of investments, risk-seeking individuals are likely to invest in high-risk, high-reward assets.
+# For example, you have a diversified portfolio but allocate a significant portion of it to highly speculative assets such as cryptocurrencies, high-growth tech stocks, and startup companies through venture capital investments. You are particularly intrigued by the burgeoning field of virtual reality (VR) and decide to invest a substantial amount in a promising yet unproven VR startup company.
+# You are aware that the VR market is highly competitive and volatile, and the startup has not yet turned a profit. However, you believe strongly in the potential revolutionary impact of VR technology and the talented team behind the startup. The potential reward, in your view, significantly outweighs the risk.
+# In this case, the high level of uncertainty and potential for high returns in your investments exemplifies a risk-seeking tendency. You are willing to accept the possibility of substantial losses for the chance of achieving high returns.
+
+
+character_string = '''
+You accumuate a lot of informaion of the following sectors so you are especially good at trading them:
+(1)Electric Vehicles (Automotive Sector): This is Tesla's primary sector. Tesla designs, manufactures, and sells electric cars, which are famous for their performance, range, and technological features. Models include the Tesla Model S, Model 3, Model X, Model Y, and the upcoming Cybertruck.
+(2) Energy Generation and Storage: Tesla is also involved in solar energy generation and energy storage products. This includes solar panels, solar roof tiles (marketed as Solar Roof), and energy storage products like the Powerwall, Powerpack, and Megapack. These products are designed to store energy for residential, commercial, and utility-scale projects.
+(3) Autonomous Driving and AI Technology: Tesla is a leader in developing autonomous driving technology. Their cars come equipped with a suite of sensors and software designed for autopilot and potentially fully autonomous driving capabilities in the future. They are also developing AI technologies related to this.
+(4) Battery Production and Development: Tesla is heavily invested in battery technology and production. They produce batteries not just for their cars but also for their energy storage products. The development of more efficient and cost-effective batteries is a key part of their strategy, as demonstrated by their work on the 4680 battery cell.
+(5) Software and Services: Tesla also develops and sells software, most notably its Full Self-Driving (FSD) software package. Additionally, the company offers services like vehicle servicing, Supercharger stations, and insurance specific to Tesla vehicles.
+(6) Information Technology: This sector comprises companies engaged in developing, maintaining, and selling technology products, software, and services, including hardware, software, and IT consulting services.
+
+You are an expert of TSLA.
+As of mid-2021, Tesla Inc. (TSLA) was renowned for its innovation in the electric vehicle (EV) sector, having expanded its product line to include not only various car models but also solar energy products and energy storage solutions. Its primary revenue source remained its EV segment, led by the success of the Model 3 and Model Y vehicles. Over the past years, Tesla had shown substantial growth in sales and revenue, driven by increased production capabilities, global expansion, particularly in China with the Shanghai Gigafactory, and a growing acceptance of electric vehicles. Financially, Tesla Inc. (TSLA) experienced various financial and operational trends from mid-2021 to mid-2022. Here's a brief summary structured as following:  Tesla saw substantial revenue growth over the period. The revenue in Q2 2021 was around $12 billion, and it increased to $24.3 billion by Q4 2022, showcasing a significant uptrend. The company's profitability also grew with its annual profit rising to $12.6 billion in 2022 from $5.5 billion in 2021. Stock Performance: Mid-2021 The stock began 2021 at a price of approximately $243.26 and reached a high of $409.97 during the year, closing at $352.26 by the end of the year. The average stock price for 2021 was about $259.99. 2022 Performance: Tesla's stock experienced a decline in 2022, opening the year at approximately $399.93, but dropping to a low of $109.10 during the year. It closed the year at a significantly lower price of $123.18, with an average price of $263.09 for the year, marking a -65.03% annual change. The automotive gross margin remained high, with a notable figure of 27.9% in Q3 2022, indicating a healthy profit margin on new vehicle sales. Tesla increased its cash balance to a record $21 billion in Q3 2022, reflecting strong operational cash flows​​. Tesla continued to invest in expanding its manufacturing capabilities, including ramping up production in new facilities like the Texas Gigafactory​​. Tesla's market capitalization also saw an upward trend, reaching a peak of around $1.2 trillion, making it one of the most valuable companies globally​4. These trends reflect Tesla's continued growth and solid financial performance over the defined period, despite certain quarters where revenue missed Wall Street expectations.
+'''
+
+notational_cash = 1000000
+[agent.agent_1.embedding]
+endpoint = "open-ai"
+type="open-ai-longer-than-context"
+[agent.agent_1.embedding.detail]
+embedding_model = "text-embedding-ada-002"
+chunk_size=5000
+verbose=false
+[agent.agent_1.short]
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=3.0, importance_factor=0.92}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+jump_threshold_upper = 60
+jump_threshold_lower = -999999999 # not lower bound
+[agent.agent_1.mid]
+jump_threshold_lower = 60
+jump_threshold_upper = 80 
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=90.0, importance_factor=0.967}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+[agent.agent_1.long]
+jump_threshold_lower = 80
+jump_threshold_upper = 999999999 # not upper bound
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+[agent.agent_1.reflection]
+jump_threshold_lower = -999999999 # not lower bound
+jump_threshold_upper = 999999999 # not upper bound
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}

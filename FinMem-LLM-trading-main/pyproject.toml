@@ -1,0 +1,48 @@
+[tool.poetry]
+name = "finmem"
+version = "0.1.0"
+description = ""
+authors = ["Yangyang Yu <shirleyyu0915@outlook.com>, Haohang Li <hli113@stevens.edu>, Zhi Chen<zchen100@stevens.edu>, Yuechen Jiang<yjiang52@stevens.edu>, Yang Li <yli269@stevens.edu>"]
+license = "MIT LICENSE"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "< 3.11, >= 3.10"
+polars = "^0.18.15"
+beautifulsoup4 = "^4.12.2"
+pytest-playwright = "^0.4.2"
+tqdm = "^4.66.1"
+ipykernel = "^6.25.1"
+python-dotenv = "^1.0.0"
+pytz = "^2023.3"
+dvc = {extras = ["s3"], version = "^3.15.2"}
+rich = "^13.5.2"
+toml = "^0.10.2"
+typer = "^0.9.0"
+pyarrow = "^12.0.1"
+httpx = "^0.24.1"
+yfinance = "^0.2.28"
+torch = "1.13.1"
+sortedcontainers = "^2.4.0"
+openai = "^0.28.0"
+black = {extras = ["jupyter"], version = "^23.7.0"}
+faiss-cpu = "^1.7.2"
+llvmlite = "^0.40.1"
+langchain = {extras = ["all"], version = "^0.0.297"}
+guardrails-ai = "^0.2.3"
+ipywidgets = "^8.1.1"
+quantstats = "^0.0.62"
+pytest = "^7.4.2"
+deeplake = "^3.7.0"
+gymnasium = "0.28.1"
+matplotlib = "^3.8.0"
+numpy = "1.23.4"
+pandas = "1.5.3"
+setuptools = "64.0.2"
+stable-baselines3 = "^2.1.0"
+annotated-types = "^0.5.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
