@@ -7,12 +7,12 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2311.13743-b31b1b.svg)](https://arxiv.org/abs/2311.13743)
 
 This repo provides the Python source code for the paper:
-[FINMEM: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743)[[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
+[FINMEM: A Performance-Enhanced LLM Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743)[[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
 
 ```
 @article{yu2023finme,
   title={FinMe: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design},
-  author={Yu, Yangyang and Li, Haohang and Chen, Zhi and Jiang, Yuechen and Li, Yang and Zhang, Denghui and Liu, Rong and Suchow, Jordan W and Khashanah, Khaldoun},
+  author={Yu, Yangyang and Li, Haohang and Chen, Zhi and Jiang, Yuechen and Li, Yang, and Zhang, Denghui and Liu, Rong, and Suchow, Jordan W and Khashanah, Khaldoun},
   journal={arXiv preprint arXiv:2311.13743},
   year={2023}
 }
@@ -83,7 +83,7 @@ As the OpenAI API is not always stable, the running process may be interrupted i
 | Company 10Q | SEC EDGAR | Part 1 Item 2 | [SEC API Section Extractor API](https://sec-api.io/docs/sec-filings-item-extraction-api) |
 
 ### Data Schemas
-After downloaded data from the above sources, each dataset need to be processed with following schemas to be able to convert to the environment data format.
+After downloading data from the above sources, each dataset needs to be processed with following schemas to be able to convert to the environment data format.
 
 #### Daily Stock Price
 | Column | Type | Note |
