@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # start date
-START_DATE = "2021-08-15"
+START_DATE = "2021-04-25"
 END_DATE = "2023-08-15"
 
 
