@@ -1,0 +1,80 @@
+[env]
+start_time = "2021-08-15"
+end_time = "2023-08-15"
+
+[agent]
+[agent.agent_1]
+[agent.agent_1.chat]
+endpoint = "open-ai"
+model_name = "gpt-4-1106-preview"
+temperature = 0.7
+[agent.agent_1.general]
+use_gpu = false
+top_k = 5
+
+
+
+character_string = '''
+You accumuate a lot of informaion of the following sectors so you are especially good at trading them:
+(1) Technology Services:  Microsoft Corporation is specifically under the Packaged Software industry. This trading sector encompasses companies that primarily work on the development, support, and sale of software, technology services, and technology infrastructure.
+(2) Productivity and Business Processes: This includes products and services related to productivity, communication, and information services, which are used across various devices and platforms.
+(3) Intelligent Cloud: This segment deals with public, private, and hybrid server products, as well as cloud services that support modern business infrastructures.
+(4) Personal Computing: This segment caters to end users, developers, and IT professionals, providing products and services across all devices. This includes operating systems, cross-device productivity applications, server applications, business solution applications, desktop and server management tools, software development tools, video games, personal computers, tablets, gaming and entertainment consoles, other intelligent devices, and related accessories
+(5) Information Technology: This sector comprises companies engaged in developing, maintaining, and selling technology products, software, and services, including hardware, software, and IT consulting services.
+
+You are an expert of MSFT.
+Microsoft operates within the Technology sector, specifically in the packaged software industry. 
+Microsoft had a strong financial performance in 2021, with stock prices soaring approximately 50%. The company's cloud service, particularly Azure, was a key growth driver, and there were expectations that this momentum would continue into 2022.
+Despite concerns that cloud growth might moderate post-pandemic, the deal activity indicated that digital transformation was still in full swing, with only 35% of Microsoft's vast installed base having transitioned to the cloud by early 2022. Projections were made that enterprise workloads on the cloud would rise from 43% to 55% by the end of 2022.
+The company's stock performance reflected this positive outlook. For $100 invested in Microsoft stock on June 30, 2017, the value would have increased to $416.25 by June 2021, and despite a slight dip, it remained high at $397.90 by June 2022. This performance was notably stronger than the S&P 500 and the NASDAQ Computer Index over the same period.
+Forecasts suggested that enterprise workloads on the cloud would increase, potentially providing additional revenue for Microsoft. The price increase of Office 365 was also anticipated to contribute an additional $5 billion in revenue for the year. Despite a tightening monetary policy environment, analysts projected that Microsoft's growth story was underestimated and expected the company's market valuation could reach a $3 trillion market cap within the following 12 months, indicating a positive stock trend expectation.
+'''
+
+notational_cash = 1000000
+[agent.agent_1.embedding]
+endpoint = "open-ai"
+type="open-ai-longer-than-context"
+[agent.agent_1.embedding.detail]
+embedding_model = "text-embedding-ada-002"
+chunk_size=5000
+verbose=false
+[agent.agent_1.short]
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=3.0, importance_factor=0.92}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+jump_threshold_upper = 60
+jump_threshold_lower = -999999999 # not lower bound
+[agent.agent_1.mid]
+jump_threshold_lower = 60
+jump_threshold_upper = 80 
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=90.0, importance_factor=0.967}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+[agent.agent_1.long]
+jump_threshold_lower = 80
+jump_threshold_upper = 999999999 # not upper bound
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+[agent.agent_1.reflection]
+jump_threshold_lower = -999999999 # not lower bound
+jump_threshold_upper = 999999999 # not upper bound
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}

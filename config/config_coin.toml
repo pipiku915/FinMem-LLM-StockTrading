@@ -1,0 +1,82 @@
+[env]
+start_time = "2021-08-15"
+end_time = "2023-08-15"
+
+[agent]
+[agent.agent_1]
+[agent.agent_1.chat]
+endpoint = "open-ai"
+model_name = "gpt-4-1106-preview"
+temperature = 0.7
+[agent.agent_1.general]
+use_gpu = false
+top_k = 5
+
+
+
+character_string = '''
+You accumuate a lot of informaion of the following sectors so you are especially good at trading them:
+(1) Consumer Financial Services: Coinbase offers services that allow consumers to use it as their primary financial account in the cryptoeconomy. This can include holding cryptocurrencies, executing transactions, and managing their crypto assets.
+(2) Institutional Trading: It serves as a marketplace offering liquidity for institutional crypto asset transactions. Institutions can trade in larger volumes and with different facilities compared to regular consumers.
+(3) Developer Services: Coinbase provides technology and services that enable developers to create crypto-based applications. This includes APIs and other tools necessary for integrating cryptocurrency payments into new or existing applications.
+(4) Secure Payment Acceptance: The platform enables businesses to accept crypto assets as payment securely, which is crucial for the adoption of cryptocurrencies in everyday commerce.
+You are an expert of COIN.
+Coinbase operates within the financial services sector, specifically in the industry of financial data and stock exchanges. 
+From 2021 to September 2022, Coinbase experienced significant financial fluctuations:
+Market Capitalization: It varied notably, with a low of approximately $8.03 billion as of September 30, 2022, and then a significant increase to around $35.08 billion by September 30, 2023.
+Enterprise Value: Similarly, the enterprise value saw considerable changes, from $6.13 billion to $32.67 billion in the same period, showing volatility in the company's perceived value.
+Stock Performance Metrics: The 52-week change in stock price showed a substantial increase of 219.69%, which was notably higher than the S&P 500's 52-week change of 14.91%. The stock reached a 52-week high of $147.86 and a low of $31.55, indicating high volatility. The 50-day and 200-day moving averages were $92.32 and $76.16, respectively, suggesting shifts in stock trends over time.
+Profitability: The profit margin and operating margin stood at -28.00% and -20.01%, respectively, indicating challenges in profitability. The return on assets was -0.77%, and the return on equity was -12.74%, reflecting difficulties in generating returns on investments.
+Income Statement Highlights: Total revenue over the trailing twelve months (ttm) was $2.63 billion, with a gross profit of $2.52 billion. However, the EBITDA was negative at -$1.31 billion, and the net income available to common was also negative at -$735.57 million, showing losses in operations. Quarterly revenue growth year-over-year (yoy) was 8.10%, suggesting some growth amidst the challenges. Diluted EPS (earnings per share) for the ttm was -$3.20, further emphasizing the losses incurred during this period.
+In summary, Coinbase's financial performance from 2021 to September 2022 showed significant market capitalization growth and stock price volatility, with substantial gains in stock value compared to the broader market. However, the company faced profitability challenges, as indicated by negative profit margins, operating margins, and returns on assets and equity. Despite these challenges, there was some revenue growth year-over-year.
+As for the forecast for the future: Q4 2022 Forecast: Amazon's guidance for the fourth quarter of 2022 expected net sales to be between $140.0 billion and $148.0 billion, marking a growth of 2% to 8% compared with the fourth quarter of 2021. However, this projection accounts for an anticipated unfavorable impact from foreign exchange rates. Operating income was projected to range from $0 to $4.0 billion, down from $3.5 billion in the fourth quarter of 2021.
+'''
+
+notational_cash = 1000000
+[agent.agent_1.embedding]
+endpoint = "open-ai"
+type="open-ai-longer-than-context"
+[agent.agent_1.embedding.detail]
+embedding_model = "text-embedding-ada-002"
+chunk_size=5000
+verbose=false
+[agent.agent_1.short]
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=3.0, importance_factor=0.92}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+jump_threshold_upper = 60
+jump_threshold_lower = -999999999 # not lower bound
+[agent.agent_1.mid]
+jump_threshold_lower = 60
+jump_threshold_upper = 80 
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=90.0, importance_factor=0.967}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+[agent.agent_1.long]
+jump_threshold_lower = 80
+jump_threshold_upper = 999999999 # not upper bound
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+[agent.agent_1.reflection]
+jump_threshold_lower = -999999999 # not lower bound
+jump_threshold_upper = 999999999 # not upper bound
+importance_score_initialization = "sample"
+recency_score_initialization = "constant"
+compound_score_calculation = "linear"
+importance_score_change_access_counter = "linear"
+decay_type = "exponential"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
