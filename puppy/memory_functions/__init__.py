@@ -1,14 +1,11 @@
 from .importance_score import (
-    get_importance_score_initialization_func,
     ImportanceScoreInitialization,
+    I_SampleInitialization_Short,
+    I_SampleInitialization_Mid,
+    I_SampleInitialization_Long,
+    get_importance_score_initialization_func,
 )
-from .recency import get_recency_score_initialization_func, RecencyScoreInitialization
-from .compound_score import (
-    get_compound_score_calculation_func,
-    CompoundScoreCalculation,
-)
-from .decay import get_decay_func, DecayFunctions
-from .access_counter import (
-    get_access_counter_change_func,
-    ImportanceScoreChangeAccessCounter,
-)
+from .recency import R_ConstantInitialization
+from .compound_score import LinearCompoundScore
+from .decay import ExponentialDecay
+from .access_counter import LinearImportanceScoreChange

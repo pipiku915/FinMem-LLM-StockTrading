@@ -2,50 +2,44 @@ import os
 import shutil
 import pickle
 from datetime import date
-import datetime
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Tuple, Union, Any
 from pydantic import BaseModel, ValidationError
-import timeout_decorator
-import datetime
 
 # type alias
-record_type = Dict[str, float | str]
 market_info_type = Tuple[
     date,  # cur date
-    Dict[str, float],  # cur price
-    # Dict[str, float],  # cur eco
-    Dict[str, str],  # cur filing_k
-    Dict[str, str],  # cur filing_q
-    Dict[str, List[str]],  # cur news
-    # Dict[str, record_type],  # cur ark record
-    bool,  # terminated
+    float,  # cur price
+    str,  # cur filing_k
+    str,  # cur filing_q
+    List[str],  # cur news
+    float,  # cur record
+    bool,  # termination flag
 ]
-terminated_market_info_type = Tuple[None, None, None, None, None, None, None, bool]
+terminated_market_info_type = Tuple[None, None, None, None, None, None, bool]
 
 
 # env data structure validation
 class OneDateRecord(BaseModel):
     price: Dict[str, float]
-    # eco: Dict[str, float]
     filing_k: Dict[str, str]
     filing_q: Dict[str, str]
     news: Dict[str, List[str]]
-    # ark_record: Dict[str, record_type]
 
 
 class MarketEnvironment:
     def __init__(
         self,
-        env_data_pkl: Dict[date, Dict[str, float | record_type]],
+        env_data_pkl: Dict[date, Dict[str, Any]],
         start_date: date,
         end_date: date,
+        symbol: str,
     ) -> None:
         # validate structure
         first_date = list(env_data_pkl.keys())[0]
         if not isinstance(first_date, date):
             raise TypeError("env_data_pkl keys must be date type")
         try:
-            OneDateRecord.validate(env_data_pkl[first_date])
+            OneDateRecord.model_validate(env_data_pkl[first_date])
         except ValidationError as e:
             raise e
         self.date_series = env_data_pkl.keys()
@@ -55,11 +49,6 @@ class MarketEnvironment:
             i for i in self.date_series if (i >= start_date) and (i <= end_date)
         ]
 
-        ## run only when stuck
-        # date_to_delete = '2023-04-20'
-        # date_delete_object = datetime.datetime.strptime(date_to_delete, "%Y-%m-%d").date()
-        # self.date_series.remove(date_delete_object)
-
         self.date_series = sorted(self.date_series)
         self.date_series_keep = self.date_series.copy()
         self.simulation_length = len(self.date_series)
@@ -67,6 +56,7 @@ class MarketEnvironment:
         self.end_date = end_date
         self.cur_date = None
         self.env_data = env_data_pkl
+        self.symbol = symbol
 
     def reset(self) -> None:
         self.date_series = [
@@ -77,42 +67,32 @@ class MarketEnvironment:
         self.date_series = sorted(self.date_series)
         self.cur_date = None
 
-    @timeout_decorator.timeout(5, timeout_exception=TimeoutError)
     def step(self) -> Union[market_info_type, terminated_market_info_type]:
         try:
-            self.cur_date = self.date_series.pop(0)
-            future_date = self.date_series[0]
+            self.cur_date = self.date_series.pop(0)  # type: ignore
+            future_date = self.date_series[0]  # type: ignore
         except IndexError:
-            return None, None, None, None, None, None, None, True
+            return None, None, None, None, None, None, True
 
         cur_date = self.cur_date
         cur_price = self.env_data[self.cur_date]["price"]
         future_price = self.env_data[future_date]["price"]
-        # cur_eco = self.env_data[self.cur_date]["eco"]
         cur_filing_k = self.env_data[self.cur_date]["filing_k"]
         cur_filing_q = self.env_data[self.cur_date]["filing_q"]
         cur_news = self.env_data[self.cur_date]["news"]
-        cur_record = {}
-        for symbol in cur_price:
-            cur_record[symbol] = future_price[symbol] - cur_price[symbol]
-
+        cur_record = {
+            symbol: future_price[symbol] - cur_price[symbol]  # type: ignore
+            for symbol in cur_price  # type: ignore
+        }
         return (
             cur_date,
-            future_date,
-            cur_price,
-            # cur_eco,
-            cur_filing_k,
-            cur_filing_q,
-            cur_news,
-            cur_record,
+            cur_price[self.symbol],
+            cur_filing_k[self.symbol],
+            cur_filing_q[self.symbol],
+            cur_news[self.symbol],
+            cur_record[self.symbol],
             False,
         )
-
-    # def get_simulation_length(self) -> int:
-    #     return len(self.date_series)
-
-    # def get_simulation_length(self) -> int:
-    #     return self.simulation_length
 
     def save_checkpoint(self, path: str, force: bool = False) -> None:
         path = os.path.join(path, "env")

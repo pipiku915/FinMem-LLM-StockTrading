@@ -1,18 +1,19 @@
 # FINMEM: A Performance-Enhanced LLM Trading Agent with Layered Memory and Character Design
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg)](https://www.python.org/downloads/release/python-3100/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black) [![arXiv](https://img.shields.io/badge/arXiv-2311.13743-b31b1b.svg)](https://arxiv.org/abs/2311.13743)
 
-[![arXiv](https://img.shields.io/badge/arXiv-2311.13743-b31b1b.svg)](https://arxiv.org/abs/2311.13743)
+```text
+"So we beat on, boats against the current, borne back ceaselessly into the past."
+                                        -- F. Scott Fitzgerald: The Great Gatsby
+```
 
 This repo provides the Python source code for the paper:
-[FINMEM: A Performance-Enhanced LLM Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743)[[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
+[FINMEM: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743)[[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
 
-```
+```bibtex
 @article{yu2023finme,
   title={FinMe: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design},
-  author={Yu, Yangyang and Li, Haohang and Chen, Zhi and Jiang, Yuechen and Li, Yang, and Zhang, Denghui and Liu, Rong, and Suchow, Jordan W and Khashanah, Khaldoun},
+  author={Yu, Yangyang and Li, Haohang and Chen, Zhi and Jiang, Yuechen and Li, Yang and Zhang, Denghui and Liu, Rong and Suchow, Jordan W and Khashanah, Khaldoun},
   journal={arXiv preprint arXiv:2311.13743},
   year={2023}
 }
@@ -26,53 +27,61 @@ Recent advancements in Large Language Models (LLMs) have exhibited notable effic
 ![2](figures/workflow.png)
 ![3](figures/character.png)
 
-
 ## Usage
+
 ### Docker Setup
-We recommend using Docker to run the code. The Dockerfile image is available at [Dockerfile](). Also, a development container set up with VSCode is available at [devcontainer.json]().
+
+We recommend using Docker to run the code. A development container set up with VSCode is available at [devcontainer.json](.devcontainer/devcontainer.json).
 
 ### Dependencies
+
 The code is tested on Python 3.10. All dependencies can be installed via [poetry](https://python-poetry.org/) with the following command:
-```
+
+```bash
 poetry config virtualenvs.in-project true  # optional: install virtualenv in project
 poetry install
 ```
+
 We recommend using [pipx](https://pypa.github.io/pipx/) to install poetry. After installing dependencies, you can activate the virtual environment with `poetry shell` or `source .venv/bin/activate` if virtualenv is installed in project folder.
 
-
 ### Run Code
+
 The entry point of the code is `run.py`. Use
-```
+
+```bash
 python run.py --help
 ```
+
 to see the available options. All configurations are stored in `config/config.toml`.
 
-### Train
-```
-python run.py train
-```
-with the following default options:
-```
---market-data-path  -mdp      TEXT     The market data path [default: /workspaces/ArkGPT/data/06_input/subset_symbols.pkl]                                 │
-│ --start-time        -st       TEXT     The start time [default: 2022-03-14]                                                                                │
-│ --end-time          -et       TEXT     The end time [default: 2022-06-27]                                                                                  │
-│ --config-path       -cp       TEXT     config file path [default: config/config.toml]                                                                                                                                                │
-│ --checkpoint-path   -ckp      TEXT     The checkpoint path [default: data/09_checkpoint]                                                                   │
-│ --save-every        -se       INTEGER  Save every n steps [default: 1]                                                                                     │
-│ --result-path       -rp       TEXT     The result save path [default: data/11_train_result]                                                                │
-│ --help                                 Show this message and exit.  
-```
-As the OpenAI API is not always stable, the running process may be interrupted in many circumstances. The training process will automatically save the checkpoint at every step. You can resume the training process by running `python run.py train-checkpoint` with the following default options:
-```
- --checkpoint-path   -cp       TEXT     The checkpoint path [default: data/09_checkpoint]                                                                                                                                                       │
-│ --result-path       -rp       TEXT     The result save path [default: data/11_train_result]                                                                                                                                                    │
-│ --market-data-path  -mdp      TEXT     The market data path [default: data/06_input/subset_symbols.pkl]                                                    │
-│ --help                                 Show this message and exit.  
-```
-### Test
+### Run Simulation
 
+```bash
+python run.py sim
+```
+
+with the following default options:
+
+```bash
+ --market-data-path  -mdp      TEXT  The environment data pickle path [default: data/06_input/subset_symbols.pkl]                                          │
+│ --start-time        -st       TEXT  The start time [default: 2022-04-04]                                                                                  │
+│ --end-time          -et       TEXT  The end time [default: 2022-06-15]                                                                                    │
+│ --run-model         -rm       TEXT  Run mode: train or test [default: train]                                                                              │
+│ --config-path       -cp       TEXT  config file path [default: config/config.toml]                                                                        │
+│ --checkpoint-path   -ckp      TEXT  The checkpoint path [default: data/09_checkpoint]                                                                     │
+│ --result-path       -rp       TEXT  The result save path [default: data/11_train_result]                               Show this message and exit.  
+```
+
+As the OpenAI API is not always stable, the running process may be interrupted in many circumstances. The training process will automatically save the checkpoint at every step. You can resume the training process by running `python run.py sim-checkpoint` with the following default options:
+
+```bash
+--checkpoint-path  -cp      TEXT  The checkpoint path [default: data/09_checkpoint]                                                                                                                 │
+│ --result-path      -rp      TEXT  The result save path [default: data/11_train_result]                                                                                                              │
+│ --run-model        -rm      TEXT  Run mode: train or test [default: train] 
+```
 
 ## Notes
+
 ### Data Sources
 
 | Type | Source | Note | Download Method |
@@ -83,9 +92,11 @@ As the OpenAI API is not always stable, the running process may be interrupted i
 | Company 10Q | SEC EDGAR | Part 1 Item 2 | [SEC API Section Extractor API](https://sec-api.io/docs/sec-filings-item-extraction-api) |
 
 ### Data Schemas
-After downloading data from the above sources, each dataset needs to be processed with following schemas to be able to convert to the environment data format.
+
+After downloaded data from the above sources, each dataset need to be processed with following schemas to be able to convert to the environment data format.
 
 #### Daily Stock Price
+
 | Column | Type | Note |
 |-|-|-|
 | Date | datetime | - |
@@ -98,6 +109,7 @@ After downloading data from the above sources, each dataset needs to be processe
 |Symbol| str | Ticker Symbol |
 
 #### Daily Market News
+
 | Column | Type | Note |
 |-|-|-|
 | author | str | - |
@@ -112,11 +124,12 @@ After downloading data from the above sources, each dataset needs to be processe
 | text | str | Concatenate title and summary |
 
 #### Company 10K & 10Q
+
 | Column | Type | Note |
 |-|-|-|
 | document_url | str | EDGAR File Archive Link |
 | content | str | - |
 | ticker | str | Ticker Symbol |
-| utc_timestamp	| datetime | - |
-| est_timestamp	| datetime | - |
+| utc_timestamp | datetime | - |
+| est_timestamp | datetime | - |
 | type | str | "10-K" or "10-Q" |

@@ -1,27 +1,24 @@
 import os
 import faiss
-import random
 import pickle
 import faiss
 import logging
 import shutil
 import numpy as np
-from sortedcontainers import SortedList
+from datetime import date
 from itertools import repeat
-from .embedding import get_embedding_func, EmbeddingFunction
+from sortedcontainers import SortedList
+from .embedding import OpenAILongerThanContextEmb
 from typing import List, Union, Dict, Any, Tuple, Callable
 from .memory_functions import (
     ImportanceScoreInitialization,
-    RecencyScoreInitialization,
-    CompoundScoreCalculation,
-    DecayFunctions,
     get_importance_score_initialization_func,
-    get_recency_score_initialization_func,
-    get_compound_score_calculation_func,
-    get_decay_func,
-    get_access_counter_change_func,
-    ImportanceScoreChangeAccessCounter,
+    R_ConstantInitialization,
+    LinearCompoundScore,
+    ExponentialDecay,
+    LinearImportanceScoreChange,
 )
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -42,26 +39,24 @@ class id_generator_func:
         return self.current_id - 1
 
 
-class MemoryDB:
-    def __init__(  # test pass
+class MemoryDB:  # can possibly take multiple symbols
+    def __init__(
         self,
         db_name: str,
         id_generator: Callable,
         jump_threshold_upper: float,
         jump_threshold_lower: float,
-        embedding_function: EmbeddingFunction,
+        embedding_function: OpenAILongerThanContextEmb,
         importance_score_initialization: ImportanceScoreInitialization,
-        recency_score_initialization: RecencyScoreInitialization,
-        compound_score_calculation: CompoundScoreCalculation,
-        importance_score_change_access_counter: ImportanceScoreChangeAccessCounter,
-        decay_function: DecayFunctions,
+        recency_score_initialization: R_ConstantInitialization,
+        compound_score_calculation: LinearCompoundScore,
+        importance_score_change_access_counter: LinearImportanceScoreChange,
+        decay_function: ExponentialDecay,
         clean_up_threshold_dict: Dict[
             str, float
         ],  # {"recency_threshold": x, "importance_threshold": y"}
-        use_gpu: bool = True,
     ) -> None:
-        # general attributes
-        self.use_gpu = use_gpu
+        # db attributes
         self.db_name = db_name
         self.id_generator = id_generator
         self.jump_threshold_upper = jump_threshold_upper
@@ -76,10 +71,7 @@ class MemoryDB:
             importance_score_change_access_counter
         )
         self.clean_up_threshold_dict = dict(clean_up_threshold_dict)
-        if use_gpu:
-            self.res = faiss.StandardGpuResources()
-
-        # record for each equity
+        # records
         self.universe = {}
 
     @classmethod
@@ -88,52 +80,28 @@ class MemoryDB:
     ) -> "MemoryDB":
         return cls(
             db_name=f"{agent_name}_{memory_layer}",
-            jump_threshold_upper=config[agent_name][memory_layer][
-                "jump_threshold_upper"
-            ],
-            jump_threshold_lower=config[agent_name][memory_layer][
-                "jump_threshold_lower"
-            ],
-            embedding_function=get_embedding_func(config[agent_name]["embedding"]),
+            id_generator=id_generator_func(),
+            jump_threshold_upper=config[memory_layer]["jump_threshold_upper"],
+            jump_threshold_lower=config[memory_layer]["jump_threshold_lower"],
+            embedding_function=OpenAILongerThanContextEmb(**config["embedding"]),
             importance_score_initialization=get_importance_score_initialization_func(
-                type=config[agent_name][memory_layer][
-                    "importance_score_initialization_type"
-                ],
+                type=config[memory_layer]["importance_score_initialization_type"],
                 memory_layer=memory_layer,
             ),
-            recency_score_initialization=get_recency_score_initialization_func(
-                type=config[agent_name][memory_layer]["constant"],
-                memory_layer=memory_layer,
+            recency_score_initialization=R_ConstantInitialization(),
+            compound_score_calculation=LinearCompoundScore(),
+            decay_function=ExponentialDecay(
+                **config[memory_layer]["decay_params"],
             ),
-            compound_score_calculation=get_compound_score_calculation_func(
-                type="linear", memory_layer=memory_layer
-            ),
-            decay_function=get_decay_func(
-                type=config[agent_name][memory_layer]["decay_type"],
-                memory_layer=memory_layer,
-                **config[agent_name][memory_layer]["decay_params"],
-            ),
-            clean_up_threshold_dict=config[agent_name][memory_layer][
-                "clean_up_threshold_dict"
-            ],
-            importance_score_change_access_counter=get_access_counter_change_func(
-                config[agent_name][memory_layer][
-                    "importance_score_change_access_counter"
-                ],
-                memory_layer,
-            ),
-            use_gpu=config["general"]["use_gpu"],
+            clean_up_threshold_dict=config[memory_layer]["clean_up_threshold_dict"],
+            importance_score_change_access_counter=LinearImportanceScoreChange(),
         )
 
-    def add_new_symbol(self, symbol: str) -> None:  # test pass
+    def add_new_symbol(self, symbol: str) -> None:
         cur_index = faiss.IndexFlatIP(
             self.emb_dim
         )  # normalized inner product is cosine similarity
         cur_index = faiss.IndexIDMap2(cur_index)
-        if self.use_gpu:
-            cur_index = faiss.index_cpu_to_gpu(
-                self.res, 0, cur_index
-            )  # this part will be very slow at the first time as cuda need to compile some files
         temp_record = {
             "score_memory": SortedList(
                 key=lambda x: x["important_score_recency_compound_score"]
@@ -142,9 +110,7 @@ class MemoryDB:
         }
         self.universe[symbol] = temp_record
 
-    def add_memory(
-        self, symbol: str, date: str, text: Union[List[str], str]
-    ) -> None:  # test pass
+    def add_memory(self, symbol: str, date: date, text: Union[List[str], str]) -> None:
         # add new symbol if not exist
         if symbol not in self.universe:
             self.add_new_symbol(symbol)
@@ -184,7 +150,7 @@ class MemoryDB:
                     "date": date,
                 }
             )
-            # TODO: debug
+            # log
             logger.info(
                 {
                     "text": text[i],
@@ -197,11 +163,10 @@ class MemoryDB:
                     "date": date,
                 }
             )
-            # TODO: debug
 
     def query(
         self, query_text: str, top_k: int, symbol: str
-    ) -> Tuple[List[str], List[int]]:  # test pass
+    ) -> Tuple[List[str], List[int]]:
         if (
             (symbol not in self.universe)
             or (len(self.universe[symbol]["score_memory"]) == 0)
@@ -229,12 +194,12 @@ class MemoryDB:
                 ),
                 None,
             )
-            temp_text_list.append(cur_record["text"])
-            temp_date_list.append(cur_record["date"])
-            temp_ids.append(cur_record["id"])
+            temp_text_list.append(cur_record["text"])  # type: ignore
+            temp_date_list.append(cur_record["date"])  # type: ignore
+            temp_ids.append(cur_record["id"])  # type: ignore
             temp_score.append(
                 self.compound_score_calculation_func.merge_score(
-                    cur_sim, cur_record["important_score_recency_compound_score"]
+                    cur_sim, cur_record["important_score_recency_compound_score"]  # type: ignore
                 )
             )
         # top 5 partial compound score: part 2 search
@@ -243,8 +208,8 @@ class MemoryDB:
         p2_emb = np.vstack(temp_arrays)
         temp_index = faiss.IndexFlatIP(self.emb_dim)
         temp_index = faiss.IndexIDMap2(temp_index)
-        temp_index.add_with_ids(p2_emb, np.array(p2_ids))
-        p2_dist, p2_ids = temp_index.search(emb, top_k)
+        temp_index.add_with_ids(p2_emb, np.array(p2_ids))  # type: ignore
+        p2_dist, p2_ids = temp_index.search(emb, top_k)  # type: ignore
         p2_dist, p2_ids = p2_dist[0].tolist(), p2_ids[0].tolist()
         for cur_sim, cur_id in zip(p2_dist, p2_ids):
             cur_record = next(
@@ -255,12 +220,12 @@ class MemoryDB:
                 ),
                 None,
             )
-            temp_text_list.append(cur_record["text"])
-            temp_date_list.append(cur_record["date"])
-            temp_ids.append(cur_record["id"])
+            temp_text_list.append(cur_record["text"])  # type: ignore
+            temp_date_list.append(cur_record["date"])  # type: ignore
+            temp_ids.append(cur_record["id"])  # type: ignore
             temp_score.append(
                 self.compound_score_calculation_func.merge_score(
-                    cur_sim, cur_record["important_score_recency_compound_score"]
+                    cur_sim, cur_record["important_score_recency_compound_score"]  # type: ignore
                 )
             )
         # rank sort
@@ -279,14 +244,7 @@ class MemoryDB:
             ret_date_list.append(temp_ret_date_list[i])
             ret_ids.append(temp_ret_ids[i])
 
-        my_list = list(range(len(ret_text_list)))  # 这样 my_list 将是 [0, 1]
-        random_index = random.sample(
-            my_list, min(top_k, len(my_list))
-        )  # 这将确保随机索引在有效范围内
-
-        selected_text = [ret_text_list[i] for i in random_index]
-        selected_ids = [ret_ids[i] for i in random_index]
-        return selected_text, selected_ids
+        return ret_text_list, ret_ids
 
     def update_access_count_with_feed_back(  # test pass
         self, symbol: str, ids: List[int], feedback: List[int]
@@ -311,10 +269,6 @@ class MemoryDB:
                         recency_score=cur_record["recency_score"],
                         importance_score=cur_record["important_score"],
                     )
-                    # TODO: debug
-                    logger.info("update_access_count_with_feed_back")
-                    logger.info(cur_record)
-                    # TODO: debug
                     success_ids.append(cur_id)
                     break
         self.universe[symbol]["score_memory"] = cur_score_memory
@@ -373,7 +327,9 @@ class MemoryDB:
         self._decay()
         return self._clean_up()
 
-    def prepare_jump(self) -> Tuple[Dict[str, Dict[str, Any]]]:
+    def prepare_jump(
+        self,
+    ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]], List[int]]:
         jump_dict_up = {}
         jump_dict_down = {}
         id_to_remove = []
@@ -430,7 +386,7 @@ class MemoryDB:
         if direction not in ["up", "down"]:
             raise ValueError("direction must be either [up] or [down]")
 
-        jump_dict = jump_dict[0] if direction == "up" else jump_dict[1]
+        jump_dict = jump_dict[0] if direction == "up" else jump_dict[1]  # type: ignore
         for cur_symbol in jump_dict:
             if cur_symbol not in self.universe:
                 self.add_new_symbol(cur_symbol)
@@ -459,7 +415,6 @@ class MemoryDB:
         os.mkdir(os.path.join(path, name))
         # save config dict
         state_dict = {
-            "use_gpu": self.use_gpu,
             "db_name": self.db_name,
             "id_generator": self.id_generator,
             "jump_threshold_upper": self.jump_threshold_upper,
@@ -526,7 +481,6 @@ class MemoryDB:
             ],
             decay_function=state_dict["decay_function"],
             clean_up_threshold_dict=state_dict["clean_up_threshold_dict"],
-            use_gpu=state_dict["use_gpu"],
         )
         obj.universe = universe.copy()
         return obj
@@ -537,7 +491,7 @@ class BrainDB:
         self,
         agent_name: str,
         id_generator: id_generator_func,
-        embedding_function: EmbeddingFunction,
+        embedding_function: OpenAILongerThanContextEmb,
         short_term_memory: MemoryDB,
         mid_term_memory: MemoryDB,
         long_term_memory: MemoryDB,
@@ -557,142 +511,81 @@ class BrainDB:
         self.removed_ids = []
 
     @classmethod
-    def from_config(cls, config: Dict[str, Any], agent_name: str) -> "BrainDB":
+    def from_config(cls, config: Dict[str, Any]) -> "BrainDB":
         # other states
         id_generator = id_generator_func()
-        embedding_function = get_embedding_func(
-            type=config[agent_name]["embedding"]["type"],
-            config=config[agent_name]["embedding"]["detail"],
-        )
-        use_gpu = config[agent_name]["general"]["use_gpu"]
+        embedding_function = OpenAILongerThanContextEmb(**config["embedding"]["detail"])
+        agent_name = config["general"]["agent_name"]
         # memory layers
         short_term_memory = MemoryDB(
             db_name=f"{agent_name}_short",
             id_generator=id_generator,
-            jump_threshold_upper=config[agent_name]["short"]["jump_threshold_upper"],
-            jump_threshold_lower=-999999999,
+            jump_threshold_upper=config["short"]["jump_threshold_upper"],
+            jump_threshold_lower=-999999999,  # no lower bound
             embedding_function=embedding_function,
             importance_score_initialization=get_importance_score_initialization_func(
-                type=config[agent_name]["short"]["importance_score_initialization"],
+                type=config["short"]["importance_score_initialization"],
                 memory_layer="short",
             ),
-            recency_score_initialization=get_recency_score_initialization_func(
-                type=config[agent_name]["short"]["recency_score_initialization"],
-                memory_layer="short",
+            recency_score_initialization=R_ConstantInitialization(),
+            compound_score_calculation=LinearCompoundScore(),
+            importance_score_change_access_counter=LinearImportanceScoreChange(),
+            decay_function=ExponentialDecay(
+                **config["short"]["decay_params"],
             ),
-            compound_score_calculation=get_compound_score_calculation_func(
-                type="linear", memory_layer="short"
-            ),
-            importance_score_change_access_counter=get_access_counter_change_func(
-                config[agent_name]["short"]["importance_score_change_access_counter"],
-                "short",
-            ),
-            decay_function=get_decay_func(
-                type=config[agent_name]["short"]["decay_type"],
-                memory_layer="short",
-                **config[agent_name]["short"]["decay_params"],
-            ),
-            clean_up_threshold_dict=config[agent_name]["short"][
-                "clean_up_threshold_dict"
-            ],
-            use_gpu=use_gpu,
+            clean_up_threshold_dict=config["short"]["clean_up_threshold_dict"],
         )
         mid_term_memory = MemoryDB(
             db_name=f"{agent_name}_mid",
             id_generator=id_generator,
-            jump_threshold_upper=config[agent_name]["mid"]["jump_threshold_upper"],
-            jump_threshold_lower=config[agent_name]["mid"]["jump_threshold_lower"],
+            jump_threshold_upper=config["mid"]["jump_threshold_upper"],
+            jump_threshold_lower=config["mid"]["jump_threshold_lower"],
             embedding_function=embedding_function,
             importance_score_initialization=get_importance_score_initialization_func(
-                type=config[agent_name]["mid"]["importance_score_initialization"],
+                type=config["mid"]["importance_score_initialization"],
                 memory_layer="mid",
             ),
-            recency_score_initialization=get_recency_score_initialization_func(
-                type=config[agent_name]["mid"]["recency_score_initialization"],
-                memory_layer="mid",
-            ),
-            compound_score_calculation=get_compound_score_calculation_func(
-                type="linear", memory_layer="mid"
-            ),
-            importance_score_change_access_counter=get_access_counter_change_func(
-                config[agent_name]["mid"]["importance_score_change_access_counter"],
-                "mid",
-            ),
-            decay_function=get_decay_func(
-                type=config[agent_name]["mid"]["decay_type"],
-                memory_layer="mid",
-                **config[agent_name]["mid"]["decay_params"],
-            ),
-            clean_up_threshold_dict=config[agent_name]["mid"][
-                "clean_up_threshold_dict"
-            ],
-            use_gpu=use_gpu,
+            recency_score_initialization=R_ConstantInitialization(),
+            compound_score_calculation=LinearCompoundScore(),
+            importance_score_change_access_counter=LinearImportanceScoreChange(),
+            decay_function=ExponentialDecay(**config["mid"]["decay_params"]),
+            clean_up_threshold_dict=config["mid"]["clean_up_threshold_dict"],
         )
         long_term_memory = MemoryDB(
             db_name=f"{agent_name}_long",
             id_generator=id_generator,
-            jump_threshold_upper=999999999,
-            jump_threshold_lower=config[agent_name]["long"]["jump_threshold_lower"],
+            jump_threshold_upper=999999999,  # no upper bound
+            jump_threshold_lower=config["long"]["jump_threshold_lower"],
             embedding_function=embedding_function,
             importance_score_initialization=get_importance_score_initialization_func(
-                type=config[agent_name]["long"]["importance_score_initialization"],
+                type=config["long"]["importance_score_initialization"],
                 memory_layer="long",
             ),
-            recency_score_initialization=get_recency_score_initialization_func(
-                type=config[agent_name]["long"]["recency_score_initialization"],
-                memory_layer="long",
+            recency_score_initialization=R_ConstantInitialization(),
+            compound_score_calculation=LinearCompoundScore(),
+            importance_score_change_access_counter=LinearImportanceScoreChange(),
+            decay_function=ExponentialDecay(
+                **config["long"]["decay_params"],
             ),
-            compound_score_calculation=get_compound_score_calculation_func(
-                type="linear", memory_layer="long"
-            ),
-            importance_score_change_access_counter=get_access_counter_change_func(
-                config[agent_name]["long"]["importance_score_change_access_counter"],
-                "long",
-            ),
-            decay_function=get_decay_func(
-                type=config[agent_name]["long"]["decay_type"],
-                memory_layer="long",
-                **config[agent_name]["long"]["decay_params"],
-            ),
-            clean_up_threshold_dict=config[agent_name]["long"][
-                "clean_up_threshold_dict"
-            ],
-            use_gpu=use_gpu,
+            clean_up_threshold_dict=config["long"]["clean_up_threshold_dict"],
         )
         reflection_memory = MemoryDB(
             db_name=f"{agent_name}_reflection",
             id_generator=id_generator,
-            jump_threshold_upper=999999999,
-            jump_threshold_lower=-999999999,
+            jump_threshold_upper=999999999,  # no upper bound
+            jump_threshold_lower=-999999999,  # no lower bound
             embedding_function=embedding_function,
             importance_score_initialization=get_importance_score_initialization_func(
-                type=config[agent_name]["reflection"][
-                    "importance_score_initialization"
-                ],
+                type=config["reflection"]["importance_score_initialization"],
                 memory_layer="reflection",
             ),
-            recency_score_initialization=get_recency_score_initialization_func(
-                type=config[agent_name]["reflection"]["recency_score_initialization"],
-                memory_layer="reflection",
+            recency_score_initialization=R_ConstantInitialization(),
+            compound_score_calculation=LinearCompoundScore(),
+            importance_score_change_access_counter=LinearImportanceScoreChange(),
+            decay_function=ExponentialDecay(
+                **config["reflection"]["decay_params"],
             ),
-            compound_score_calculation=get_compound_score_calculation_func(
-                type="linear", memory_layer="reflection"
-            ),
-            importance_score_change_access_counter=get_access_counter_change_func(
-                config[agent_name]["reflection"][
-                    "importance_score_change_access_counter"
-                ],
-                "reflection",
-            ),
-            decay_function=get_decay_func(
-                type=config[agent_name]["reflection"]["decay_type"],
-                memory_layer="reflection",
-                **config[agent_name]["reflection"]["decay_params"],
-            ),
-            clean_up_threshold_dict=config[agent_name]["reflection"][
-                "clean_up_threshold_dict"
-            ],
-            use_gpu=use_gpu,
+            clean_up_threshold_dict=config["reflection"]["clean_up_threshold_dict"],
         )
         return cls(
             agent_name=agent_name,
@@ -702,26 +595,25 @@ class BrainDB:
             mid_term_memory=mid_term_memory,
             long_term_memory=long_term_memory,
             reflection_memory=reflection_memory,
-            use_gpu=use_gpu,
         )
 
     def add_memory_short(
-        self, symbol: str, date: str, text: Union[List[str], str]
+        self, symbol: str, date: date, text: Union[List[str], str]
     ) -> None:
         self.short_term_memory.add_memory(symbol, date, text)
 
     def add_memory_mid(
-        self, symbol: str, date: str, text: Union[List[str], str]
+        self, symbol: str, date: date, text: Union[List[str], str]
     ) -> None:
         self.mid_term_memory.add_memory(symbol, date, text)
 
     def add_memory_long(
-        self, symbol: str, date: str, text: Union[List[str], str]
+        self, symbol: str, date: date, text: Union[List[str], str]
     ) -> None:
         self.long_term_memory.add_memory(symbol, date, text)
 
     def add_memory_reflection(
-        self, symbol: str, date: str, text: Union[List[str], str]
+        self, symbol: str, date: date, text: Union[List[str], str]
     ) -> None:
         self.reflection_memory.add_memory(symbol, date, text)
 
@@ -747,7 +639,7 @@ class BrainDB:
 
     def update_access_count_with_feed_back(
         self, symbol: str, ids: Union[List[int], int], feedback: int
-    ):
+    ) -> None:
         if isinstance(ids, int):
             ids = [ids]
         ids = [i for i in ids if i not in self.removed_ids]
@@ -789,12 +681,8 @@ class BrainDB:
                 symbol, ids, feedback_list
             )
         )
-        # if ids := [i for i in ids if i not in success_ids]:
-        #     raise ValueError("ids conflict")
-        # else:
-        return
 
-    def step(self):
+    def step(self) -> None:
         # first decay then clean up
         self.removed_ids.extend(self.short_term_memory.step())
         for cur_symbol in self.short_term_memory.universe:
@@ -833,7 +721,7 @@ class BrainDB:
             ) = self.short_term_memory.prepare_jump()
             jump_dict_short = (jump_dict_up, jump_dict_down)
             self.removed_ids.extend(deleted_ids)
-            self.mid_term_memory.accept_jump(jump_dict_short, "up")
+            self.mid_term_memory.accept_jump(jump_dict_short, "up")  # type: ignore
             for cur_symbol in jump_dict_up:
                 logger.info(
                     f"up-{cur_symbol}: {jump_dict_up[cur_symbol]['jump_object_list']}"
@@ -852,8 +740,8 @@ class BrainDB:
             ) = self.mid_term_memory.prepare_jump()
             self.removed_ids.extend(deleted_ids)
             jump_dict_mid = (jump_dict_up, jump_dict_down)
-            self.long_term_memory.accept_jump(jump_dict_mid, "up")
-            self.short_term_memory.accept_jump(jump_dict_mid, "down")
+            self.long_term_memory.accept_jump(jump_dict_mid, "up")  # type: ignore
+            self.short_term_memory.accept_jump(jump_dict_mid, "down")  # type: ignore
             for cur_symbol in jump_dict_up:
                 logger.info(
                     f"up-{cur_symbol}: {jump_dict_up[cur_symbol]['jump_object_list']}"
@@ -872,7 +760,7 @@ class BrainDB:
             ) = self.long_term_memory.prepare_jump()
             self.removed_ids.extend(deleted_ids)
             jump_dict_long = (log_jump_dict_up, log_jump_dict_down)
-            self.mid_term_memory.accept_jump(jump_dict_long, "down")
+            self.mid_term_memory.accept_jump(jump_dict_long, "down")  # type: ignore
             for cur_symbol in jump_dict_up:
                 logger.info(
                     f"up-{cur_symbol}: {jump_dict_up[cur_symbol]['jump_object_list']}"
@@ -940,5 +828,4 @@ class BrainDB:
             mid_term_memory=mid_term_memory,
             long_term_memory=long_term_memory,
             reflection_memory=reflection_memory,
-            use_gpu=state_dict["use_gpu"],
         )

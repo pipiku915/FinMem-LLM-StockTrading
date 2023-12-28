@@ -1,39 +1,11 @@
 import os
 import asyncio
 import numpy as np
+from typing import List, Union
 from langchain.embeddings import OpenAIEmbeddings
-from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Union
 
 
-class EmbeddingFunction(ABC):
-    @abstractmethod
-    def __call__(self, text: Union[List[str], str]) -> np.array:
-        """
-        Abstract method for performing embedding on a list of text.
-
-        Args:
-            text (List[str]): A list of text to be embedded.
-
-        Returns:
-            np.array: The embedding of the input text.
-
-        """
-        pass
-
-    @abstractmethod
-    def get_embedding_dimension(self) -> int:
-        """
-        Abstract method for getting the dimension of the embedding.
-
-        Returns:
-            int: The dimension of the embedding.
-
-        """
-        pass
-
-
-class OpenAILongerThanContextEmb(EmbeddingFunction):
+class OpenAILongerThanContextEmb:
     """
     Embedding function with openai as embedding backend.
     If the input is larger than the context size, the input is split into chunks of size `chunk_size` and embedded separately.
@@ -63,7 +35,7 @@ class OpenAILongerThanContextEmb(EmbeddingFunction):
         self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
         self.emb_model = OpenAIEmbeddings(
             model=embedding_model,
-            openai_api_key=openai_api_key or os.environ.get("OPENAI_API_KEY"),
+            api_key=openai_api_key or os.environ.get("OPENAI_API_KEY"),
             chunk_size=chunk_size,
             show_progress_bar=verbose,
         )
@@ -86,7 +58,7 @@ class OpenAILongerThanContextEmb(EmbeddingFunction):
             text = [text]
         return await self.emb_model.aembed_documents(texts=text, chunk_size=None)
 
-    def __call__(self, text: Union[List[str], str]) -> np.array:
+    def __call__(self, text: Union[List[str], str]) -> np.ndarray:
         """
         Performs embedding on a list of text.
 
@@ -125,26 +97,3 @@ class OpenAILongerThanContextEmb(EmbeddingFunction):
                 raise NotImplementedError(
                     f"Embedding dimension for model {self.emb_model.model} not implemented"
                 )
-
-
-class OpenAISummarizationEmb(EmbeddingFunction):
-    # TODO: implement the summarization embedding function
-    # TODO: see https://python.langchain.com/docs/use_cases/summarization
-    def __init__(self) -> None:
-        super().__init__()
-
-    def __call__(self, text: List[str]) -> np.array:
-        pass
-
-    def get_embedding_dimension(self) -> int:
-        pass
-
-
-def get_embedding_func(type: str, config: Dict[str, Any]) -> EmbeddingFunction:
-    match type:
-        case "open-ai-longer-than-context":
-            return OpenAILongerThanContextEmb(**config)
-        case "open-ai-summarization":
-            raise NotImplementedError("OpenAI summarization embedding not implemented")
-        case _:
-            raise NotImplementedError(f"Embedding function type {type} not implemented")
