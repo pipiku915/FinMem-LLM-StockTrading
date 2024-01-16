@@ -5,7 +5,7 @@ import pickle
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
 # just need to change the variable here
-file_name = '/workspaces/ArkGPT/data/06_input/subset_symbols.pkl'
+file_name = './data/06_input/subset_symbols.pkl'
 ticker = "TSLA"
 
 
