@@ -21,7 +21,7 @@ if __name__ == "__main__":
                 del cur_eco["ICSA"]
         else:
             raise TypeError("t10yff is not str")
-    with open("/workspaces/ArkGPT/data/06_input/new_data_fix_t10yff.pkl", "wb") as f:
+    with open("/workspaces/ArkGPT/data/06_input/all_symbols.pkl", "wb") as f:
         pickle.dump(new_data, f)
 
 # TODO: data removed
