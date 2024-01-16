@@ -45,5 +45,5 @@ for k, v in tqdm(data.items()):
         "ark_record": new_ark_record,
     }
 
-with open("data/06_input/subset_symbols.pkl", "wb") as f:
+with open("./data/06_input/subset_symbols.pkl", "wb") as f:
     pickle.dump(new_dict, f)
