@@ -11,11 +11,13 @@ This repo provides the Python source code for the paper:
 [FINMEM: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743)[[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
 
 ```bibtex
-@article{yu2023finme,
-  title={FinMe: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design},
-  author={Yu, Yangyang and Li, Haohang and Chen, Zhi and Jiang, Yuechen and Li, Yang and Zhang, Denghui and Liu, Rong and Suchow, Jordan W and Khashanah, Khaldoun},
-  journal={arXiv preprint arXiv:2311.13743},
-  year={2023}
+@misc{yu2023finmem,
+      title={FinMem: A Performance-Enhanced LLM Trading Agent with Layered Memory and Character Design}, 
+      author={Yangyang Yu and Haohang Li and Zhi Chen and Yuechen Jiang and Yang Li and Denghui Zhang and Rong Liu and Jordan W. Suchow and Khaldoun Khashanah},
+      year={2023},
+      eprint={2311.13743},
+      archivePrefix={arXiv},
+      primaryClass={q-fin.CP}
 }
 ```
 
