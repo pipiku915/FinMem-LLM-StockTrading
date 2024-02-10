@@ -16,7 +16,7 @@ train_investment_info_prefix = "The current date is {cur_date}. Here are the obs
 test_investment_info_prefix = "The ticker of the stock to be analyzed is {symbol} and the current date is {cur_date}"
 test_sentiment_explanation = """For example, positive news about a company can lift investor sentiment, encouraging more buying activity which in turn can push stock prices higher. 
         Conversely, negative news can dampen investor sentiment, leading to selling pressure and a decrease in stock prices.
-        News about competitors can also have a ripple effect on a company’s stock price. 
+        News about competitors can also have a ripple effect on a company's stock price. 
         For instance, if a competitor announces a groundbreaking new product, other companies in the industry might see their stock prices fall as investors anticipate a loss of market share. The positive score, neutral score and negative score are sentiment score. 
         Sentiment score involves evaluating and interpreting subjective information in text data to understand the sentiments, opinions, or emotions expressed.
         The positive score, neutral score, and negative scores are ratios for proportions of text that fall in each category (so these should all add up to be 1).
@@ -28,24 +28,28 @@ test_momentum_explanation = """The information below provides a summary of stock
         """
 
 # prompts
-train_prompt = """Given the following information, can you explain to me why the financial market fluctuation from current day to the next day behaves like this?
+train_prompt = """Given the following information, can you explain to me why the financial market fluctuation from current day to the next day behaves like this? Just summarize the reason of the decision。
     Your should provide a summary information and the id of the information to support your summary.
 
     ${investment_info}
 
     ${gr.complete_json_suffix_v2}
 """
-test_prompt = """ Given the information, can you make an investment decision?
-    please consider the short-term information, the mid-term information, the long-term information, the reflection-term information.
+# When cumulative return is positive or zero, you are a risk-seeking investor, positive information have a greater influence on your investment decisions, while negative information have a lesser impact.
+# But when cumulative return is negative, you are a risk-averse investor, negative information have a greater influence on your investment decisions, while positive information have a lesser impact.
+test_prompt = """ Given the information, can you make an investment decision? Just summarize the reason of the decision。
+    please consider only the available short-term information, the mid-term information, the long-term information, the reflection-term information.
     please consider the momentum of the historical stock price.
-    Please bear in mind you can switch between investment tendencies, which are risk-seeking and risk-averse.
-    When cumulative return is positive, you are a risk-seeking investor.
+    When cumulative return is positive or zero, you are a risk-seeking investor.
     But when cumulative return is negative, you are a risk-averse investor. 
     please consider how much share of the stock the investor holds now.   
     You should provide exactly one of the following investment decisions: buy or sell.
-    When it is really hard to make a 'buy'-or-'sell' decision, you could go with hold option. You also need to provide the id of the information to support your decision.
+    When it is really hard to make a 'buy'-or-'sell' decision, you could go with 'hold' option.
+    You also need to provide the id of the information to support your decision. 
+    
 
     ${investment_info}
 
     ${gr.complete_json_suffix_v2}    
+
 """

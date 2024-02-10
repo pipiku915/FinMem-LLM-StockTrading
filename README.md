@@ -8,7 +8,7 @@
 ```
 
 This repo provides the Python source code for the paper:
-[FINMEM: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743)[[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
+[FINMEM: A Performance-Enhanced Large Language Model Trading Agent with Layered Memory and Character Design](https://arxiv.org/abs/2311.13743) [[PDF]](https://arxiv.org/pdf/2311.13743.pdf)
 
 ```bibtex
 @misc{yu2023finmem,
@@ -29,109 +29,119 @@ Recent advancements in Large Language Models (LLMs) have exhibited notable effic
 ![2](figures/workflow.png)
 ![3](figures/character.png)
 
+## Repository Structure
+
+```bash
+finmem-docker
+├── LICENSE
+├── README.md
+├── config  -> Configurations for the program
+├── data  -> Data
+├── puppy  -> Source code
+├── run.py  -> Entry point of the program, see below for details
+├── run_examples.sh  -> Bash cmd for build the docker image and run the docker container
+```
+
+
+
 ## Usage
 
-### Docker Setup
+### Setting Environment Variables & Configurations for Different Models
 
-We recommend using Docker to run the code. A development container set up with VSCode is available at [devcontainer.json](.devcontainer/devcontainer.json).
+The model can be run with LLMs on HuggingFace that can be deployed via [TGI](https://github.com/huggingface/text-generation-inference) and has sufficient instruction following ability. As we will always use the `text-embedding-ada-002` as our embedding model, the `OPENAI_API_KEY` variable needs to be set in `.env` no matter what backbone LLM is used.
 
-### Dependencies
-
-The code is tested on Python 3.10. All dependencies can be installed via [poetry](https://python-poetry.org/) with the following command:
+If the LLM is gated, the `HF_TOKEN` needs to be set in `.env`
 
 ```bash
-poetry config virtualenvs.in-project true  # optional: install virtualenv in project
-poetry install
+OPENAI_API_KEY = "<Your OpenAI Key>"
+HF_TOKEN = "<Your HF token>"
 ```
 
-We recommend using [pipx](https://pypa.github.io/pipx/) to install poetry. After installing dependencies, you can activate the virtual environment with `poetry shell` or `source .venv/bin/activate` if virtualenv is installed in project folder.
-
-### Run Code
-
-The entry point of the code is `run.py`. Use
+and set the `config/config.toml`
 
 ```bash
-python run.py --help
+[chat]
+model = "tgi"
+end_point = "<set the your endpoint address>"
+tokenization_model_name = "<model name>"
+...
 ```
 
-to see the available options. All configurations are stored in `config/config.toml`.
-
-### Run Simulation
+To run the OpenAI model, the configuration file should be set as
 
 ```bash
-python run.py sim
+model = "gpt-4"
+end_point = "https://api.openai.com/v1/chat/completions"
+tokenization_model_name = "gpt-4"
 ```
 
-with the following default options:
+and with comment out `HF_TOKEN` in `.env`
 
 ```bash
- --market-data-path  -mdp      TEXT  The environment data pickle path [default: data/06_input/subset_symbols.pkl]                                          │
-│ --start-time        -st       TEXT  The start time [default: 2022-04-04]                                                                                  │
-│ --end-time          -et       TEXT  The end time [default: 2022-06-15]                                                                                    │
-│ --run-model         -rm       TEXT  Run mode: train or test [default: train]                                                                              │
-│ --config-path       -cp       TEXT  config file path [default: config/config.toml]                                                                        │
-│ --checkpoint-path   -ckp      TEXT  The checkpoint path [default: data/09_checkpoint]                                                                     │
-│ --result-path       -rp       TEXT  The result save path [default: data/11_train_result]                               Show this message and exit.  
+OPENAI_API_KEY = "<Your OpenAI Key>"
+# HF_TOKEN = ""
 ```
 
-As the OpenAI API is not always stable, the running process may be interrupted in many circumstances. The training process will automatically save the checkpoint at every step. You can resume the training process by running `python run.py sim-checkpoint` with the following default options:
+### Build Docker Image & Run the Container
+
+The dockerfile is based on Python 3.10 at
 
 ```bash
---checkpoint-path  -cp      TEXT  The checkpoint path [default: data/09_checkpoint]                                                                                                                 │
-│ --result-path      -rp      TEXT  The result save path [default: data/11_train_result]                                                                                                              │
-│ --run-model        -rm      TEXT  Run mode: train or test [default: train] 
+.devcontainer/Dockerfile
 ```
 
-## Notes
+To build the docker image, run
 
-### Data Sources
+```bash
+docker build -t test-finmem finmem/.devcontainer/. 
+```
 
-| Type | Source | Note | Download Method |
-|-|-|-|-|
-| Daily Stock Price | Yahoo Finance | OHLCV | [yfinance](https://pypi.org/project/yfinance/) |
-| Daily Market News | Alpaca Market News API | Historical Daily News | [Alpaca News API](https://docs.alpaca.markets/docs/news-api) |
-| Company 10K | SEC EDGAR | Item 7 | [SEC API Section Extractor API](https://sec-api.io/docs/sec-filings-item-extraction-api)  |
-| Company 10Q | SEC EDGAR | Part 1 Item 2 | [SEC API Section Extractor API](https://sec-api.io/docs/sec-filings-item-extraction-api) |
+To start the container, run
 
-### Data Schemas
+```bash
+docker run -it --rm -v $(pwd):/finmem test-finmem bash
+```
 
-After downloaded data from the above sources, each dataset need to be processed with following schemas to be able to convert to the environment data format.
+This will enter the root folder of the project.
 
-#### Daily Stock Price
+## Program
 
-| Column | Type | Note |
-|-|-|-|
-| Date | datetime | - |
-| Open | float | - |
-| High | float | - |
-| Low | float | - |
-| Close | float | - |
-| Adj Close | float | Adjusted Close Price |
-| Volume | float | - |
-|Symbol| str | Ticker Symbol |
+The program has two main functionalities:
 
-#### Daily Market News
+```bash
+ Usage: run.py sim [OPTIONS]                                                                                                                
+                                                                                                                                            
+ Start Simulation                                                                                                                           
+                                                                                                                                            
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --market-data-path    -mdp      TEXT  The environment data pickle path [default: data/06_input/subset_symbols.pkl]                       │
+│ --start-time          -st       TEXT  The training or test start time [default: 2022-06-30 For Ticker 'TSLA']                                                               │
+│ --end-time            -et       TEXT  The training or test end time [default: 2022-10-11]                                                                 │
+│ --run-model           -rm       TEXT  Run mode: train or test [default: train]                                                           │
+│ --config-path         -cp       TEXT  config file path [default: config/config.toml]                                                     │
+│ --checkpoint-path     -ckp      TEXT  The checkpoint save path [default: data/10_checkpoint_test]                                             │
+│ --result-path         -rp       TEXT  The result save path [default: data/11_train_result]                                               │
+│ --trained-agent-path  -tap      TEXT  Only used in test mode, the path of trained agent [default: None. Can be changed to data/05_train_model_output OR data/06_train_checkpoint]                                  │
+│ --help                                Show this message and exit.                                                                        │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+                              
+```
 
-| Column | Type | Note |
-|-|-|-|
-| author | str | - |
-| content | str | Almost empty when downloaded from Alpaca API|
-| datetime | datetime | - |
-| date | datetime | Align the news datetime with trading hours, i.e., the news after 4 PM is moved to the next day at 9 AM. |
-| source | str | - |
-| summary| str | - |
-| title | str | - |
-| url | str | - |
-| equity | str | Ticker Symbol |
-| text | str | Concatenate title and summary |
+Notice our model has two modes: `train` and `test`. In the train mode, the information populate the agent's memory. In the test mode, the agent will use the information in the memory and new information to make decisions. When `test` mode is selected, the trained agent must be provided.
 
-#### Company 10K & 10Q
+When the program stopped due to exceptions(OpenAI API is not stable, etc.), the training/testing process can be resumed with
 
-| Column | Type | Note |
-|-|-|-|
-| document_url | str | EDGAR File Archive Link |
-| content | str | - |
-| ticker | str | Ticker Symbol |
-| utc_timestamp | datetime | - |
-| est_timestamp | datetime | - |
-| type | str | "10-K" or "10-Q" |
+```bash
+                                                                                                                                            
+ Usage: run.py sim-checkpoint [OPTIONS]                                                                                                     
+                                                                                                                                            
+ Start Simulation from checkpoint                                                                                                           
+                                                                                                                                            
+╭─ Options ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ --checkpoint-path  -cp      TEXT  The checkpoint path [default: data/06_train_checkpoint]                                                │
+│ --result-path      -rp      TEXT  The result save path [default: data/05_train_model_output]                                             │
+│ --config-path      -ckp      TEXT  config file path [default: config/tsla_config.toml]                                                    │
+│ --run-model        -rm      TEXT  Run mode: train or test [default: train]                                                               │
+│ --help                            Show this message and exit.                                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+```

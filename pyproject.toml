@@ -1,37 +1,27 @@
 [tool.poetry]
-name = "FinMem"
-version = "0.1.0"
+name = "finmem"
+version = "0.0.0"
 description = ""
-authors = ["Yangyang Yu <shirleyyu0915@outlook.com>, Haohang Li <hli113@stevens.edu>, Zhi Chen<zchen100@stevens.edu>, Yuechen Jiang<yjiang52@stevens.edu>, Yang Li <yli269@stevens.edu>, "]
-license = "MIT License"
-readme = "README.md"
+authors = ["Haohang Li <hli113@stevens.edu>"]
 
 [tool.poetry.dependencies]
-python = "< 3.11, >= 3.10"
-polars = "^0.18.15"
-beautifulsoup4 = "^4.12.2"
+python = ">= 3.10, < 3.11"
 tqdm = "^4.66.1"
-python-dotenv = "^1.0.0"
-pytz = "^2023.3"
-rich = "^13.5.2"
+python-dotenv = "^1.0.1"
+rich = "^13.7.0"
 toml = "^0.10.2"
 typer = "^0.9.0"
-pyarrow = "^12.0.1"
-httpx = "^0.24.1"
+httpx = "^0.26.0"
 sortedcontainers = "^2.4.0"
-openai = "^0.28.0"
-black = {extras = ["jupyter"], version = "^23.11.0"}
-faiss-cpu = "^1.7.2"
-llvmlite = "^0.40.1"
-guardrails-ai = "^0.2.3"
-numpy = "1.23.4"
-pandas = "1.5.3"
-setuptools = "64.0.2"
-annotated-types = "^0.5.0"
-langchain = "^0.0.344"
-tiktoken = "^0.5.2"
+faiss-cpu = "^1.7.4"
+guardrails-ai = "^0.3.2"
+numpy = "^1.26.3"
+annotated-types = "^0.6.0"
+polars = "^0.20.5"
+langchain-community = "^0.0.15"
 
+[tool.poetry.dev-dependencies]
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

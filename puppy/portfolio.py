@@ -24,7 +24,7 @@ class Portfolio:
         self.lookback_window_size = lookback_window_size
 
     def update_market_info(self, new_market_price_info: float, cur_date: date) -> None:
-        PriceStructure.model_validate(new_market_price_info)
+        PriceStructure.model_validate({"price": new_market_price_info})
         self.market_price = new_market_price_info
         self.cur_date = cur_date
         self.date_series.append(cur_date)
