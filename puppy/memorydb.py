@@ -20,16 +20,6 @@ from .memory_functions import (
 )
 
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logging_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
-file_handler = logging.FileHandler("run.log", mode="a")
-file_handler.setFormatter(logging_formatter)
-logger.addHandler(file_handler)
-
-
 class id_generator_func:
     def __init__(self):
         self.current_id = 0
@@ -46,6 +36,7 @@ class MemoryDB:  # can possibly take multiple symbols
         id_generator: Callable,
         jump_threshold_upper: float,
         jump_threshold_lower: float,
+        logger: logging.Logger,
         embedding_function: OpenAILongerThanContextEmb,
         importance_score_initialization: ImportanceScoreInitialization,
         recency_score_initialization: R_ConstantInitialization,
@@ -73,29 +64,30 @@ class MemoryDB:  # can possibly take multiple symbols
         self.clean_up_threshold_dict = dict(clean_up_threshold_dict)
         # records
         self.universe = {}
+        self.logger = logger
 
-    @classmethod
-    def from_config(
-        cls, config: Dict[str, Any], agent_name: str, memory_layer: str
-    ) -> "MemoryDB":
-        return cls(
-            db_name=f"{agent_name}_{memory_layer}",
-            id_generator=id_generator_func(),
-            jump_threshold_upper=config[memory_layer]["jump_threshold_upper"],
-            jump_threshold_lower=config[memory_layer]["jump_threshold_lower"],
-            embedding_function=OpenAILongerThanContextEmb(**config["embedding"]),
-            importance_score_initialization=get_importance_score_initialization_func(
-                type=config[memory_layer]["importance_score_initialization_type"],
-                memory_layer=memory_layer,
-            ),
-            recency_score_initialization=R_ConstantInitialization(),
-            compound_score_calculation=LinearCompoundScore(),
-            decay_function=ExponentialDecay(
-                **config[memory_layer]["decay_params"],
-            ),
-            clean_up_threshold_dict=config[memory_layer]["clean_up_threshold_dict"],
-            importance_score_change_access_counter=LinearImportanceScoreChange(),
-        )
+    # @classmethod
+    # def from_config(
+    #     cls, config: Dict[str, Any], agent_name: str, memory_layer: str
+    # ) -> "MemoryDB":
+    #     return cls(
+    #         db_name=f"{agent_name}_{memory_layer}",
+    #         id_generator=id_generator_func(),
+    #         jump_threshold_upper=config[memory_layer]["jump_threshold_upper"],
+    #         jump_threshold_lower=config[memory_layer]["jump_threshold_lower"],
+    #         embedding_function=OpenAILongerThanContextEmb(**config["embedding"]),
+    #         importance_score_initialization=get_importance_score_initialization_func(
+    #             type=config[memory_layer]["importance_score_initialization_type"],
+    #             memory_layer=memory_layer,
+    #         ),
+    #         recency_score_initialization=R_ConstantInitialization(),
+    #         compound_score_calculation=LinearCompoundScore(),
+    #         decay_function=ExponentialDecay(
+    #             **config[memory_layer]["decay_params"],
+    #         ),
+    #         clean_up_threshold_dict=config[memory_layer]["clean_up_threshold_dict"],
+    #         importance_score_change_access_counter=LinearImportanceScoreChange(),
+    #     )
 
     def add_new_symbol(self, symbol: str) -> None:
         cur_index = faiss.IndexFlatIP(
@@ -151,7 +143,7 @@ class MemoryDB:  # can possibly take multiple symbols
                 }
             )
             # log
-            logger.info(
+            self.logger.info(
                 {
                     "text": text[i],
                     "id": ids[i],
@@ -257,17 +249,17 @@ class MemoryDB:  # can possibly take multiple symbols
             for cur_record in cur_score_memory:
                 if cur_record["id"] == cur_id:
                     cur_record["access_counter"] += cur_feedback
-                    cur_record[
-                        "important_score"
-                    ] = self.importance_score_change_access_counter(
-                        access_counter=cur_record["access_counter"],
-                        importance_score=cur_record["important_score"],
+                    cur_record["important_score"] = (
+                        self.importance_score_change_access_counter(
+                            access_counter=cur_record["access_counter"],
+                            importance_score=cur_record["important_score"],
+                        )
                     )
-                    cur_record[
-                        "important_score_recency_compound_score"
-                    ] = self.compound_score_calculation_func.recency_and_importance_score(
-                        recency_score=cur_record["recency_score"],
-                        importance_score=cur_record["important_score"],
+                    cur_record["important_score_recency_compound_score"] = (
+                        self.compound_score_calculation_func.recency_and_importance_score(
+                            recency_score=cur_record["recency_score"],
+                            importance_score=cur_record["important_score"],
+                        )
                     )
                     success_ids.append(cur_id)
                     break
@@ -288,11 +280,11 @@ class MemoryDB:  # can possibly take multiple symbols
                     important_score=cur_score_memory[i]["important_score"],
                     delta=cur_score_memory[i]["delta"],
                 )
-                cur_score_memory[i][
-                    "important_score_recency_compound_score"
-                ] = self.compound_score_calculation_func.recency_and_importance_score(
-                    recency_score=cur_score_memory[i]["recency_score"],
-                    importance_score=cur_score_memory[i]["important_score"],
+                cur_score_memory[i]["important_score_recency_compound_score"] = (
+                    self.compound_score_calculation_func.recency_and_importance_score(
+                        recency_score=cur_score_memory[i]["recency_score"],
+                        importance_score=cur_score_memory[i]["important_score"],
+                    )
                 )
             self.universe[cur_symbol]["score_memory"] = cur_score_memory
 
@@ -396,9 +388,9 @@ class MemoryDB:  # can possibly take multiple symbols
                 new_ids.append(cur_object["id"])
                 # cur_object["id"] = new_ids[-1]
                 if direction == "up":
-                    cur_object[
-                        "recency_score"
-                    ] = self.recency_score_initialization_func()
+                    cur_object["recency_score"] = (
+                        self.recency_score_initialization_func()
+                    )
                     cur_object["delta"] = 0
             self.universe[cur_symbol]["score_memory"].update(
                 jump_dict[cur_symbol]["jump_object_list"]
@@ -427,6 +419,7 @@ class MemoryDB:  # can possibly take multiple symbols
             "decay_function": self.decay_function,
             "importance_score_change_access_counter": self.importance_score_change_access_counter,
             "clean_up_threshold_dict": self.clean_up_threshold_dict,
+            "logger": self.logger,
         }
         with open(os.path.join(path, name, "state_dict.pkl"), "wb") as f:
             pickle.dump(state_dict, f)
@@ -481,6 +474,7 @@ class MemoryDB:  # can possibly take multiple symbols
             ],
             decay_function=state_dict["decay_function"],
             clean_up_threshold_dict=state_dict["clean_up_threshold_dict"],
+            logger=state_dict["logger"],
         )
         obj.universe = universe.copy()
         return obj
@@ -496,6 +490,7 @@ class BrainDB:
         mid_term_memory: MemoryDB,
         long_term_memory: MemoryDB,
         reflection_memory: MemoryDB,
+        logger: logging.Logger,
         use_gpu: bool = True,
     ):
         self.agent_name = agent_name
@@ -509,13 +504,33 @@ class BrainDB:
         self.reflection_memory = reflection_memory
         # removed ids
         self.removed_ids = []
+        self.logger = logger
 
     @classmethod
     def from_config(cls, config: Dict[str, Any]) -> "BrainDB":
         # other states
         id_generator = id_generator_func()
-        embedding_function = OpenAILongerThanContextEmb(**config["embedding"]["detail"])
+        embedding_function = OpenAILongerThanContextEmb(
+            **config["agent"]["agent_1"]["embedding"]["detail"]
+        )
         agent_name = config["general"]["agent_name"]
+        # logger
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+        logging_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        file_handler = logging.FileHandler(
+            os.path.join(
+                "data",
+                "04_model_output_log",
+                f'{config["general"]["trading_symbol"]}_run.log',
+            ),
+            mode="a",
+        )
+        file_handler.setFormatter(logging_formatter)
+        logger.addHandler(file_handler)
         # memory layers
         short_term_memory = MemoryDB(
             db_name=f"{agent_name}_short",
@@ -534,6 +549,7 @@ class BrainDB:
                 **config["short"]["decay_params"],
             ),
             clean_up_threshold_dict=config["short"]["clean_up_threshold_dict"],
+            logger=logger,
         )
         mid_term_memory = MemoryDB(
             db_name=f"{agent_name}_mid",
@@ -550,6 +566,7 @@ class BrainDB:
             importance_score_change_access_counter=LinearImportanceScoreChange(),
             decay_function=ExponentialDecay(**config["mid"]["decay_params"]),
             clean_up_threshold_dict=config["mid"]["clean_up_threshold_dict"],
+            logger=logger,
         )
         long_term_memory = MemoryDB(
             db_name=f"{agent_name}_long",
@@ -568,6 +585,7 @@ class BrainDB:
                 **config["long"]["decay_params"],
             ),
             clean_up_threshold_dict=config["long"]["clean_up_threshold_dict"],
+            logger=logger,
         )
         reflection_memory = MemoryDB(
             db_name=f"{agent_name}_reflection",
@@ -586,6 +604,7 @@ class BrainDB:
                 **config["reflection"]["decay_params"],
             ),
             clean_up_threshold_dict=config["reflection"]["clean_up_threshold_dict"],
+            logger=logger,
         )
         return cls(
             agent_name=agent_name,
@@ -595,6 +614,7 @@ class BrainDB:
             mid_term_memory=mid_term_memory,
             long_term_memory=long_term_memory,
             reflection_memory=reflection_memory,
+            logger=logger,
         )
 
     def add_memory_short(
@@ -687,33 +707,33 @@ class BrainDB:
         self.removed_ids.extend(self.short_term_memory.step())
         for cur_symbol in self.short_term_memory.universe:
             cur_memory = self.short_term_memory.universe[cur_symbol]["score_memory"]
-            logger.info(f"short term memory {cur_symbol}")
+            self.logger.info(f"short term memory {cur_symbol}")
             for i in range(len(cur_memory)):
-                logger.info(f"memory: {cur_memory[i]}")
+                self.logger.info(f"memory: {cur_memory[i]}")
         self.removed_ids.extend(self.mid_term_memory.step())
         for cur_symbol in self.mid_term_memory.universe:
             cur_memory = self.mid_term_memory.universe[cur_symbol]["score_memory"]
-            logger.info(f"mid term memory {cur_symbol}")
+            self.logger.info(f"mid term memory {cur_symbol}")
             for i in range(len(cur_memory)):
-                logger.info(f"memory: {cur_memory[i]}")
+                self.logger.info(f"memory: {cur_memory[i]}")
         self.removed_ids.extend(self.long_term_memory.step())
         for cur_symbol in self.long_term_memory.universe:
             cur_memory = self.long_term_memory.universe[cur_symbol]["score_memory"]
-            logger.info(f"long term memory {cur_symbol}")
+            self.logger.info(f"long term memory {cur_symbol}")
             for i in range(len(cur_memory)):
-                logger.info(f"memory: {cur_memory[i]}")
+                self.logger.info(f"memory: {cur_memory[i]}")
         self.removed_ids.extend(self.reflection_memory.step())
         for cur_symbol in self.reflection_memory.universe:
             cur_memory = self.reflection_memory.universe[cur_symbol]["score_memory"]
-            logger.info(f"reflection term memory {cur_symbol}")
+            self.logger.info(f"reflection term memory {cur_symbol}")
             for i in range(len(cur_memory)):
-                logger.info(f"memory: {cur_memory[i]}")
+                self.logger.info(f"memory: {cur_memory[i]}")
 
         # then jump
-        logger.info("Memory jump starts...")
+        self.logger.info("Memory jump starts...")
         for _ in range(2):
             # short
-            logger.info("Short term memory starts...")
+            self.logger.info("Short term memory starts...")
             (
                 jump_dict_up,
                 jump_dict_down,
@@ -723,16 +743,16 @@ class BrainDB:
             self.removed_ids.extend(deleted_ids)
             self.mid_term_memory.accept_jump(jump_dict_short, "up")  # type: ignore
             for cur_symbol in jump_dict_up:
-                logger.info(
+                self.logger.info(
                     f"up-{cur_symbol}: {jump_dict_up[cur_symbol]['jump_object_list']}"
                 )
             for cur_symbol in jump_dict_down:
-                logger.info(
+                self.logger.info(
                     f"down-{cur_symbol}: {jump_dict_down[cur_symbol]['jump_object_list']}"
                 )
-            logger.info("Short term memory ends...")
+            self.logger.info("Short term memory ends...")
             # mid
-            logger.info("Mid term memory starts...")
+            self.logger.info("Mid term memory starts...")
             (
                 jump_dict_up,
                 jump_dict_down,
@@ -743,16 +763,16 @@ class BrainDB:
             self.long_term_memory.accept_jump(jump_dict_mid, "up")  # type: ignore
             self.short_term_memory.accept_jump(jump_dict_mid, "down")  # type: ignore
             for cur_symbol in jump_dict_up:
-                logger.info(
+                self.logger.info(
                     f"up-{cur_symbol}: {jump_dict_up[cur_symbol]['jump_object_list']}"
                 )
             for cur_symbol in jump_dict_down:
-                logger.info(
+                self.logger.info(
                     f"down-{cur_symbol}: {jump_dict_down[cur_symbol]['jump_object_list']}"
                 )
-            logger.info("Mid term memory ends...")
+            self.logger.info("Mid term memory ends...")
             # long
-            logger.info("Long term memory starts...")
+            self.logger.info("Long term memory starts...")
             (
                 log_jump_dict_up,
                 log_jump_dict_down,
@@ -762,15 +782,15 @@ class BrainDB:
             jump_dict_long = (log_jump_dict_up, log_jump_dict_down)
             self.mid_term_memory.accept_jump(jump_dict_long, "down")  # type: ignore
             for cur_symbol in jump_dict_up:
-                logger.info(
+                self.logger.info(
                     f"up-{cur_symbol}: {jump_dict_up[cur_symbol]['jump_object_list']}"
                 )
             for cur_symbol in jump_dict_down:
-                logger.info(
+                self.logger.info(
                     f"down-{cur_symbol}: {jump_dict_down[cur_symbol]['jump_object_list']}"
                 )
-            logger.info("Long term memory ends...")
-        logger.info("Memory jump ends...")
+            self.logger.info("Long term memory ends...")
+        self.logger.info("Memory jump ends...")
 
     def save_checkpoint(self, path: str, force: bool = False) -> None:
         if os.path.exists(path):
@@ -785,6 +805,7 @@ class BrainDB:
             "emb_func": self.embedding_function,
             "id_generator": self.id_generator,
             "removed_ids": self.removed_ids,
+            "logger": self.logger,
         }
         with open(os.path.join(path, "state_dict.pkl"), "wb") as f:
             pickle.dump(state_dict, f)
@@ -828,4 +849,5 @@ class BrainDB:
             mid_term_memory=mid_term_memory,
             long_term_memory=long_term_memory,
             reflection_memory=reflection_memory,
+            logger=state_dict["logger"],
         )

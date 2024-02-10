@@ -7,19 +7,70 @@ from .run_type import RunMode
 from .memorydb import BrainDB
 from .portfolio import Portfolio
 from abc import ABC, abstractmethod
-from .chat import get_chat_end_points
+from .chat import ChatOpenAICompatible
 from .environment import market_info_type
 from typing import Dict, Union, Any, List
 from .reflection import trading_reflection
+from transformers import AutoTokenizer
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logging_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
-file_handler = logging.FileHandler("run.log", "a")
-file_handler.setFormatter(logging_formatter)
-logger.addHandler(file_handler)
+
+class TextTruncator:
+    def __init__(self, tokenization_model_name):
+        self.tokenization_model_name = tokenization_model_name
+        self.token = os.environ.get("HF_TOKEN", None)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            self.model_name, use_auth_token=self.token
+        )
+
+    def _tokenize_cnt_texts(self, input_text):
+        # Tokenize the text
+        encoded_input = self.tokenizer(input_text)
+        # Count the number of tokens
+        num_tokens = len(encoded_input["input_ids"])
+        return encoded_input, num_tokens
+
+    def process_list_of_texts(self, list_of_texts, max_total_tokens=320):
+        if "gpt" in self.tokenization_model_name:
+            return list_of_texts
+
+        truncated_list = []
+        total_tokens = 0
+        for text in list_of_texts:
+            encoded_input, num_tokens = self._tokenize_cnt_texts(text)
+
+            if total_tokens + num_tokens <= max_total_tokens:
+                truncated_list.append(text)
+                total_tokens += num_tokens
+            else:
+                # Calculate remaining tokens
+                remaining_tokens = max_total_tokens - total_tokens
+                if remaining_tokens > 0:
+                    # Truncate the current text to fit the remaining token count
+                    truncated_input_ids = encoded_input["input_ids"][:remaining_tokens]
+                    truncated_text = self.tokenizer.decode(
+                        truncated_input_ids, skip_special_tokens=True
+                    )
+                    truncated_list.append(truncated_text)
+                    total_tokens += len(
+                        truncated_input_ids
+                    )  # Update total tokens with truncated token count
+                break  # Stop processing further texts
+
+        return truncated_list, total_tokens
+
+    # for single text case
+    def truncate_text(self, input_text, max_tokens):
+        # Tokenize the text
+        encoded_input, num_tokens = self.tokenize_cnt_texts(input_text)
+
+        if len(encoded_input["input_ids"]) <= max_tokens:
+            return input_text, len(encoded_input["input_ids"])
+        encoded_input["input_ids"] = encoded_input["input_ids"][:max_tokens]
+        encoded_input["attention_mask"] = encoded_input["attention_mask"][:max_tokens]
+        # Optionally, decode the tokens back to a string
+        output_text = self.tokenizer.decode(encoded_input["input_ids"])
+        num_tokens = max_tokens
+        return output_text, num_tokens
 
 
 class Agent(ABC):
@@ -28,7 +79,7 @@ class Agent(ABC):
         pass
 
     @abstractmethod
-    def train_step(self) -> None:
+    def step(self) -> None:
         pass
 
 
@@ -40,33 +91,70 @@ class LLMAgent(Agent):
         trading_symbol: str,
         character_string: str,
         brain_db: BrainDB,
+        chat_config: Dict[str, Any],
         top_k: int = 1,
-        chat_end_point_name: str = "openai",
-        chat_end_point_config: Union[Dict[str, Any], None] = None,
         look_back_window_size: int = 7,
     ):
-        if chat_end_point_config is None:
-            chat_end_point_config = {"model_name": "gpt-4", "temperature": 0.7}
         # base
         self.counter = 1
         self.top_k = top_k
         self.agent_name = agent_name
         self.trading_symbol = trading_symbol
         self.character_string = character_string
-        self.chat_end_point_name = chat_end_point_name
-        self.chat_end_point_config = chat_end_point_config
         self.look_back_window_size = look_back_window_size
+        # truncator
+        self.truncator = TextTruncator(
+            tokenization_model_name=chat_config["tokenization_model_name"]
+        )
+        # logger
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.INFO)
+        logging_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+        file_handler = logging.FileHandler(
+            os.path.join(
+                "data",
+                "04_model_output_log",
+                f"{self.trading_symbol}_run.log",
+            ),
+            mode="a",
+        )
+        file_handler.setFormatter(logging_formatter)
+        self.logger.addHandler(file_handler)
         # brain db
         self.brain = brain_db
         # portfolio class
         self.portfolio = Portfolio(
             symbol=self.trading_symbol, lookback_window_size=self.look_back_window_size
         )
-        # chat end points
-        self.chat_end_point = get_chat_end_points(
-            end_point_type=chat_end_point_name, chat_config=chat_end_point_config
-        )
-        self.guardrail_endpoint = self.chat_end_point.guardrail_endpoint()
+        self.chat_config_save = chat_config.copy()
+        chat_config = chat_config.copy()
+        end_point = chat_config["end_point"]
+        model = chat_config["model"]
+        system_message = chat_config["system_message"]
+        self.max_token_short = chat_config.get("max_token_short", None)
+        self.max_token_mid = chat_config.get("max_token_mid", None)
+        self.max_token_long = chat_config.get("max_token_long", None)
+        self.max_token_reflection = chat_config.get("max_token_reflection", None)
+        del chat_config["end_point"]
+        del chat_config["model"]
+        del chat_config["system_message"]
+        if self.max_token_short:
+            del chat_config["max_token_short"]
+        if self.max_token_mid:
+            del chat_config["max_token_mid"]
+        if self.max_token_long:
+            del chat_config["max_token_long"]
+        if self.max_token_reflection:
+            del chat_config["max_token_reflection"]
+        self.guardrail_endpoint = ChatOpenAICompatible(
+            end_point=end_point,
+            model=model,
+            system_message=system_message,
+            other_parameters=chat_config,
+        ).guardrail_endpoint()
         # records
         self.reflection_result_series_dict = {}
         self.access_counter = {}
@@ -79,17 +167,16 @@ class LLMAgent(Agent):
             character_string=config["general"]["character_string"],
             brain_db=BrainDB.from_config(config=config),
             top_k=config["general"].get("top_k", 5),
-            chat_end_point_name=config["chat"]["endpoint"],
-            chat_end_point_config=config["chat"],
+            chat_config=config["chat"],
             look_back_window_size=config["general"]["look_back_window_size"],
         )
 
     def _handling_filings(self, cur_date: date, filing_q: str, filing_k: str) -> None:
-        if filing_q != {}:
+        if filing_q:
             self.brain.add_memory_mid(
                 symbol=self.trading_symbol, date=cur_date, text=filing_q
             )
-        if filing_k != {}:
+        if filing_k:
             self.brain.add_memory_long(
                 symbol=self.trading_symbol,
                 date=cur_date,
@@ -103,28 +190,56 @@ class LLMAgent(Agent):
             )
 
     def __query_info_for_reflection(self, run_mode: RunMode):
-        logger.info(f"Symbol: {self.trading_symbol}\n")
+        self.logger.info(f"Symbol: {self.trading_symbol}\n")
         cur_short_queried, cur_short_memory_id = self.brain.query_short(
             query_text=self.character_string,
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        for cur_id, cur_memory in zip(cur_short_memory_id, cur_short_queried):
-            logger.info(f"Top-k Short: {cur_id}: {cur_memory}\n")
+        cur_short_queried_truc, cur_short_num_tokens = (
+            self.truncator.process_list_of_texts(
+                cur_short_queried, max_total_tokens=self.max_token_short
+            )
+        )
+        cur_short_memory_id_truc = [
+            cur_short_memory_id[k] for k in range(len(cur_short_queried_truc))
+        ]
+        for cur_id, cur_memory in zip(cur_short_memory_id_truc, cur_short_queried_truc):
+            self.logger.info(f"Top-k Short: {cur_id}: {cur_memory}\n")
+        self.logger.info(f"Total tokens of Short Memory: {cur_short_num_tokens}\n")
+
         cur_mid_queried, cur_mid_memory_id = self.brain.query_mid(
             query_text=self.character_string,
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        for cur_id, cur_memory in zip(cur_mid_memory_id, cur_mid_queried):
-            logger.info(f"Top-k Mid: {cur_id}: {cur_memory}\n")
+        cur_mid_queried_truc, cur_mid_num_tokens = self.truncator.process_list_of_texts(
+            cur_mid_queried, max_total_tokens=self.max_token_mid
+        )
+        cur_mid_memory_id_truc = [
+            cur_mid_memory_id[k] for k in range(len(cur_mid_queried_truc))
+        ]
+        for cur_id, cur_memory in zip(cur_mid_memory_id_truc, cur_mid_queried_truc):
+            self.logger.info(f"Top-k Mid: {cur_id}: {cur_memory}\n")
+        self.logger.info(f"Total tokens of Middle Memory: {cur_mid_num_tokens}\n")
+
         cur_long_queried, cur_long_memory_id = self.brain.query_long(
             query_text=self.character_string,
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        for cur_id, cur_memory in zip(cur_long_memory_id, cur_long_queried):
-            logger.info(f"Top-k Long: {cur_id}: {cur_memory}\n")
+        cur_long_queried_truc, cur_long_num_tokens = (
+            self.truncator.process_list_of_texts(
+                cur_long_queried, max_total_tokens=self.max_token_long
+            )
+        )
+        cur_long_memory_id_truc = [
+            cur_long_memory_id[k] for k in range(len(cur_long_queried_truc))
+        ]
+        for cur_id, cur_memory in zip(cur_long_memory_id_truc, cur_long_queried_truc):
+            self.logger.info(f"Top-k Long: {cur_id}: {cur_memory}\n")
+        self.logger.info(f"Total tokens of Long Memory: {cur_long_num_tokens}\n")
+
         (
             cur_reflection_queried,
             cur_reflection_memory_id,
@@ -133,38 +248,60 @@ class LLMAgent(Agent):
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        for cur_id, cur_memory in zip(cur_reflection_memory_id, cur_reflection_queried):
-            logger.info(f"Top-k Reflection: {cur_id}: {cur_memory}\n")
+        cur_reflection_queried_truc, cur_reflection_num_tokens = (
+            self.truncator.process_list_of_texts(
+                cur_reflection_queried,
+                max_total_tokens=self.max_token_reflection
+            )
+        )
+        cur_reflection_memory_id_truc = [
+            cur_reflection_memory_id[k] for k in range(len(cur_reflection_queried_truc))
+        ]
+
+        for cur_id, cur_memory in zip(
+            cur_reflection_memory_id_truc, cur_reflection_queried_truc
+        ):
+            self.logger.info(f"Top-k Reflection: {cur_id}: {cur_memory}\n")
+        self.logger.info(
+            f"Total tokens of Reflection Memory: {cur_reflection_num_tokens}\n"
+        )
+        cur_all_num_tokens = (
+            cur_short_num_tokens
+            + cur_mid_num_tokens
+            + cur_long_num_tokens
+            + cur_reflection_num_tokens
+        )
+        self.logger.info(f"Total tokens of **ALL** Memory: {cur_all_num_tokens}\n")
+
         # extra config in test
         if run_mode == RunMode.Test:
-            cur_moment_ret = self.portfolio.get_moment(moment_window=2)
+            cur_moment_ret = self.portfolio.get_moment(moment_window=3)
             cur_moment = (
                 cur_moment_ret["moment"] if cur_moment_ret is not None else None
             )
 
         if run_mode == RunMode.Train:
             return (
-                cur_short_queried,
-                cur_short_memory_id,
-                cur_mid_queried,
-                cur_mid_memory_id,
-                cur_long_queried,
-                cur_long_memory_id,
-                cur_reflection_queried,
-                cur_reflection_memory_id,
+                cur_short_queried_truc,
+                cur_short_memory_id_truc,
+                cur_mid_queried_truc,
+                cur_mid_memory_id_truc,
+                cur_long_queried_truc,
+                cur_long_memory_id_truc,
+                cur_reflection_queried_truc,
+                cur_reflection_memory_id_truc,
             )
         elif run_mode == RunMode.Test:
             return (
-                cur_short_queried,
-                cur_short_memory_id,
-                cur_mid_queried,
-                cur_mid_memory_id,
-                cur_long_queried,
-                cur_long_memory_id,
-                cur_reflection_queried,
-                cur_reflection_memory_id,
+                cur_short_queried_truc,
+                cur_short_memory_id_truc,
+                cur_mid_queried_truc,
+                cur_mid_memory_id_truc,
+                cur_long_queried_truc,
+                cur_long_memory_id_truc,
+                cur_reflection_queried_truc,
+                cur_reflection_memory_id_truc,
                 cur_moment,  # type: ignore
-                cur_position,  # type: ignore
             )
 
     def __reflection_on_record(
@@ -174,7 +311,7 @@ class LLMAgent(Agent):
         cur_record: Union[float, None] = None,
     ) -> Dict[str, Any]:
         if (run_mode == RunMode.Train) and (not cur_record):
-            logger.info("No record\n")
+            self.logger.info("No record\n")
             return {}
         # reflection
         if run_mode == RunMode.Train:
@@ -204,6 +341,7 @@ class LLMAgent(Agent):
                 reflection_memory=cur_reflection_queried,
                 reflection_memory_id=cur_reflection_memory_id,
                 future_record=cur_record,  # type: ignore
+                logger=self.logger,
             )
         elif run_mode == RunMode.Test:
             (
@@ -233,6 +371,7 @@ class LLMAgent(Agent):
                 reflection_memory=cur_reflection_queried,
                 reflection_memory_id=cur_reflection_memory_id,
                 momentum=cur_moment,
+                logger=self.logger,
             )
 
         if (reflection_result is not {}) and ("summary_reason" in reflection_result):
@@ -242,7 +381,7 @@ class LLMAgent(Agent):
                 text=reflection_result["summary_reason"],
             )
         else:
-            logger.info("No reflection result , not converged\n")
+            self.logger.info("No reflection result , not converged\n")
         return reflection_result
 
     def _reflect(
@@ -263,16 +402,16 @@ class LLMAgent(Agent):
             )
         self.reflection_result_series_dict[cur_date] = reflection_result_cur_date
         if run_mode == RunMode.Train:
-            logger.info(
+            self.logger.info(
                 f"{self.trading_symbol}-Day {cur_date}\nreflection summary: {reflection_result_cur_date.get('summary_reason')}\n\n"
             )
         elif run_mode == RunMode.Test:
             if len(reflection_result_cur_date) != 0:
-                logger.info(
+                self.logger.info(
                     f"!!trading decision: {reflection_result_cur_date['investment_decision']} !! {self.trading_symbol}-Day {cur_date}\ninvestment reason: {reflection_result_cur_date.get('summary_reason')}\n\n"
                 )
             else:
-                logger.info("no decision")
+                self.logger.info("no decision")
 
     def _construct_train_actions(self, cur_record: float) -> Dict[str, int]:
         cur_direction = 1 if cur_record > 0 else -1
@@ -395,7 +534,7 @@ class LLMAgent(Agent):
         cur_record = market_info[5] if run_mode == RunMode.Train else None
         # 1. handling filings
         self._handling_filings(
-            cur_date=cur_date, filing_q=cur_filing_q, filing_k=cur_filing_k
+            cur_date=cur_date, filing_q=cur_filing_q, filing_k=cur_filing_k  # type: ignore
         )
         # 2. handling news
         self._handling_news(cur_date=cur_date, news=cur_news)
@@ -419,7 +558,7 @@ class LLMAgent(Agent):
                 test_reflection_result=self.reflection_result_series_dict[cur_date]
             )
         # 6. portfolio step
-        self._portfolio_step(cur_actions=cur_action)  # type: ignore
+        self._portfolio_step(cur_action=cur_action)  # type: ignore
         # 7. update the access counter if need to
         self._update_access_counter()
         # 8. brain step
@@ -440,10 +579,8 @@ class LLMAgent(Agent):
             "top_k": self.top_k,
             "counter": self.counter,
             "trading_symbol": self.trading_symbol,
-            "chat_end_point_name": self.chat_end_point_name,
-            "chat_end_point_config": self.chat_end_point_config,
             "portfolio": self.portfolio,
-            "chat_end_point": self.chat_end_point,
+            "chat_config": self.chat_config_save,
             "reflection_result_series_dict": self.reflection_result_series_dict,  #
             "access_counter": self.access_counter,
         }
@@ -464,10 +601,8 @@ class LLMAgent(Agent):
             character_string=state_dict["character_string"],
             brain_db=brain,
             top_k=state_dict["top_k"],
-            chat_end_point_name=state_dict["chat_end_point_name"],
-            chat_end_point_config=state_dict["chat_end_point_config"],
+            chat_config=state_dict["chat_config"],
         )
-        class_obj.chat_end_point = state_dict["chat_end_point"]
         class_obj.portfolio = state_dict["portfolio"]
         class_obj.reflection_result_series_dict = state_dict[
             "reflection_result_series_dict"

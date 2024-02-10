@@ -1,10 +1,14 @@
+# sourcery skip: dont-import-test-modules
+from rich import print
 import logging
 import guardrails as gd
 from datetime import date
 from .run_type import RunMode
 from pydantic import BaseModel, Field
+from httpx import HTTPStatusError
 from guardrails.validators import ValidChoices
 from typing import List, Callable, Dict, Union, Any, Tuple
+from .chat import LongerThanContextError
 from .prompts import (
     short_memory_id_desc,
     mid_memory_id_desc,
@@ -14,23 +18,15 @@ from .prompts import (
     train_memory_id_extract_prompt,
     train_trade_reason_summary,
     train_investment_info_prefix,
-    test_prompt,  # sourcery skip: dont-import-test-modules
-    test_trade_reason_summary,  # sourcery skip: dont-import-test-modules
-    test_memory_id_extract_prompt,  # sourcery skip: dont-import-test-modules
-    test_invest_action_choice,  # sourcery skip: dont-import-test-modules
-    test_investment_info_prefix,  # sourcery skip: dont-import-test-modules
-    test_sentiment_explanation,  # sourcery skip: dont-import-test-modules
-    test_momentum_explanation,  # sourcery skip: dont-import-test-modules
+    test_prompt,
+    test_trade_reason_summary,
+    test_memory_id_extract_prompt,
+    test_invest_action_choice,
+    test_investment_info_prefix,
+    test_sentiment_explanation,
+    test_momentum_explanation,
 )
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logging_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
-file_handler = logging.FileHandler("run.log", mode="a")
-file_handler.setFormatter(logging_formatter)
-logger.addHandler(file_handler)
+import transformers
 
 
 def _train_memory_factory(memory_layer: str, id_list: List[int]):
@@ -205,20 +201,24 @@ def _format_memories(
 
 
 def _delete_placeholder_info(validated_output: Dict[str, Any]) -> Dict[str, Any]:
-    if (validated_output["reflection_memory_index"]) and (
-        validated_output["reflection_memory_index"][0]["memory_index"] == -1
+    if "reflection_memory_index" in validated_output and (
+        (validated_output["reflection_memory_index"])
+        and (validated_output["reflection_memory_index"][0]["memory_index"] == -1)
     ):
         del validated_output["reflection_memory_index"]
-    if (validated_output["long_memory_index"]) and (
-        validated_output["long_memory_index"][0]["memory_index"] == -1
+    if "long_memory_index" in validated_output and (
+        (validated_output["long_memory_index"])
+        and (validated_output["long_memory_index"][0]["memory_index"] == -1)
     ):
         del validated_output["long_memory_index"]
-    if (validated_output["middle_memory_index"]) and (
-        validated_output["middle_memory_index"][0]["memory_index"] == -1
+    if "middle_memory_index" in validated_output and (
+        (validated_output["middle_memory_index"])
+        and (validated_output["middle_memory_index"][0]["memory_index"] == -1)
     ):
         del validated_output["middle_memory_index"]
-    if (validated_output["short_memory_index"]) and (
-        validated_output["short_memory_index"][0]["memory_index"] == -1
+    if "short_memory_index" in validated_output and (
+        (validated_output["short_memory_index"])
+        and (validated_output["short_memory_index"][0]["memory_index"] == -1)
     ):
         del validated_output["short_memory_index"]
 
@@ -357,6 +357,7 @@ def trading_reflection(
     endpoint_func: Callable[[str], str],
     symbol: str,
     run_mode: RunMode,
+    logger: logging.Logger,
     momentum: Union[int, None] = None,
     future_record: Union[Dict[str, float | str], None] = None,
     short_memory: Union[List[str], None] = None,
@@ -422,14 +423,33 @@ def trading_reflection(
 
     # prompt + validated output
     guard = gd.Guard.from_pydantic(
-        output_class=response_model, prompt=cur_prompt, num_reasks=2
+        output_class=response_model, prompt=cur_prompt, num_reasks=1
     )
-    _, validated_output = guard(
-        endpoint_func,
-        prompt_params={"investment_info": investment_info},
-    )
-    if (validated_output is None) or (not isinstance(validated_output, dict)):
-        logger.info(f"reflection failed for {symbol}")
-        return {}
 
-    return _delete_placeholder_info(validated_output)
+    try:
+        # , validated_output
+        validated_outcomes = guard(
+            endpoint_func,
+            prompt_params={"investment_info": investment_info},
+        )
+        logger.info("Guardrails Raw LLM Outputs")
+        for i, o in enumerate(guard.history[0].raw_outputs):
+            logger.info(f"Reask {i}")
+            logger.info(o)
+            logger.info("\n\n")
+        # print(guard.history.last.tree)
+        if (validated_outcomes.validated_output is None) or (
+            not isinstance(validated_outcomes.validated_output, dict)
+        ):
+            logger.info(f"reflection failed for {symbol}")
+            return {}
+        return _delete_placeholder_info(validated_outcomes.validated_output)
+
+    except Exception as e:
+        # print(guard.history.last.tree)
+        if isinstance(e.__context__, LongerThanContextError):
+            raise LongerThanContextError
+        else:
+            # raise e
+            logger.info(f"Wrong again!!!!!")
+            return _delete_placeholder_info({})

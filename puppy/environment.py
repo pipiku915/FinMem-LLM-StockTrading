@@ -9,8 +9,8 @@ from pydantic import BaseModel, ValidationError
 market_info_type = Tuple[
     date,  # cur date
     float,  # cur price
-    str,  # cur filing_k
-    str,  # cur filing_q
+    Union[str, None],  # cur filing_k
+    Union[str, None],  # cur filing_q
     List[str],  # cur news
     float,  # cur record
     bool,  # termination flag
@@ -51,7 +51,7 @@ class MarketEnvironment:
 
         self.date_series = sorted(self.date_series)
         self.date_series_keep = self.date_series.copy()
-        self.simulation_length = len(self.date_series)
+        self.simulation_length = len(self.date_series) - 1
         self.start_date = start_date
         self.end_date = end_date
         self.cur_date = None
@@ -84,11 +84,22 @@ class MarketEnvironment:
             symbol: future_price[symbol] - cur_price[symbol]  # type: ignore
             for symbol in cur_price  # type: ignore
         }
+
+        # handle none filing case
+        if len(cur_filing_k) == 0:
+            cur_filing_k = None
+        else:
+            cur_filing_k = cur_filing_k[self.symbol]
+        if len(cur_filing_q) == 0:
+            cur_filing_q = None
+        else:
+            cur_filing_q = cur_filing_q[self.symbol]
+
         return (
             cur_date,
             cur_price[self.symbol],
-            cur_filing_k[self.symbol],
-            cur_filing_q[self.symbol],
+            cur_filing_k,
+            cur_filing_q,
             cur_news[self.symbol],
             cur_record[self.symbol],
             False,

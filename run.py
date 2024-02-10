@@ -1,6 +1,5 @@
 import os
 import toml
-import openai
 import typer
 import logging
 import pickle
@@ -8,37 +7,29 @@ import warnings
 from tqdm import tqdm
 from dotenv import load_dotenv
 from datetime import datetime
+from typing import Union
 from puppy import MarketEnvironment, LLMAgent, RunMode
 
 
 # set up
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
 app = typer.Typer(name="puppy")
 warnings.filterwarnings("ignore")
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logging_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
-)
-file_handler = logging.FileHandler("run.log", mode="a")
-file_handler.setFormatter(logging_formatter)
-logger.addHandler(file_handler)
 
 
 @app.command("sim", help="Start Simulation", rich_help_panel="Simulation")
 def sim_func(
     market_data_info_path: str = typer.Option(
-        os.path.join("data", "06_input", "subset_symbols.pkl"),
+        os.path.join("data", "03_model_input", "tsla.pkl"),
         "-mdp",
         "--market-data-path",
         help="The environment data pickle path",
     ),
     start_time: str = typer.Option(
-        "2022-04-04", "-st", "--start-time", help="The start time"
+        "2022-06-30", "-st", "--start-time", help="The start time"
     ),
     end_time: str = typer.Option(
-        "2022-06-15", "-et", "--end-time", help="The end time"
+        "2022-10-11", "-et", "--end-time", help="The end time"
     ),
     run_mode: str = typer.Option(
         "train", "-rm", "--run-model", help="Run mode: train or test"
@@ -50,25 +41,48 @@ def sim_func(
         help="config file path",
     ),
     checkpoint_path: str = typer.Option(
-        os.path.join("data", "09_checkpoint"),
+        os.path.join("data", "06_train_checkpoint"),
         "-ckp",
         "--checkpoint-path",
         help="The checkpoint path",
     ),
     result_path: str = typer.Option(
-        os.path.join("data", "11_train_result"),
+        os.path.join("data", "05_train_model_output"),
         "-rp",
         "--result-path",
         help="The result save path",
     ),
+    trained_agent_path: Union[str, None] = typer.Option(
+        None,
+        "-tap",
+        "--trained-agent-path",
+        help="Only used in test mode, the path of trained agent",
+    ),
 ) -> None:
+    # load config
+    config = toml.load(config_path)
+    # set up logging
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logging_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    file_handler = logging.FileHandler(
+        os.path.join(
+            "data",
+            "04_model_output_log",
+            f'{config["general"]["trading_symbol"]}_run.log',
+        ),
+        mode="a",
+    )
+    file_handler.setFormatter(logging_formatter)
+    logger.addHandler(file_handler)
     # verify run mode
     if run_mode in {"train", "test"}:
         run_mode_var = RunMode.Train if run_mode == "train" else RunMode.Test
     else:
         raise ValueError("Run mode must be train or test")
-    # load config
-    config = toml.load(config_path)
     # create environment
     with open(market_data_info_path, "rb") as f:
         env_data_pkl = pickle.load(f)
@@ -78,8 +92,10 @@ def sim_func(
         start_date=datetime.strptime(start_time, "%Y-%m-%d").date(),
         end_date=datetime.strptime(end_time, "%Y-%m-%d").date(),
     )
-    # create agent
-    the_agent = LLMAgent.from_config(config)
+    if run_mode_var == RunMode.Train:
+        the_agent = LLMAgent.from_config(config)
+    else:
+        the_agent = LLMAgent.load_checkpoint(path=os.path.join(trained_agent_path, "agent_1"))  # type: ignore
     # start simulation
     pbar = tqdm(total=environment.simulation_length)
     while True:
@@ -107,21 +123,46 @@ def sim_func(
 )
 def sim_checkpoint(
     checkpoint_path: str = typer.Option(
-        os.path.join("data", "09_checkpoint"),
-        "-cp",
+        os.path.join("data", "06_train_checkpoint"),
+        "-ckp",
         "--checkpoint-path",
         help="The checkpoint path",
     ),
     result_path: str = typer.Option(
-        os.path.join("data", "11_train_result"),
+        os.path.join("data", "05_train_model_output"),
         "-rp",
         "--result-path",
         help="The result save path",
+    ),
+    config_path: str = typer.Option(
+        os.path.join("config", "tsla_config.toml"),
+        "-cp",
+        "--config-path",
+        help="config file path",
     ),
     run_mode: str = typer.Option(
         "train", "-rm", "--run-model", help="Run mode: train or test"
     ),
 ) -> None:
+    # load config
+    config = toml.load(config_path)
+    # set up logging
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    logging_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    file_handler = logging.FileHandler(
+        os.path.join(
+            "data",
+            "04_model_output_log",
+            f'{config["general"]["trading_symbol"]}_run.log',
+        ),
+        mode="a",
+    )
+    file_handler.setFormatter(logging_formatter)
+    logger.addHandler(file_handler)
     # verify run mode
     if run_mode in {"train", "test"}:
         run_mode_var = RunMode.Train if run_mode == "train" else RunMode.Test

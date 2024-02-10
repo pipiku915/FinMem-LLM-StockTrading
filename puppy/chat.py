@@ -1,142 +1,110 @@
 import os
-import openai
+import httpx
 import requests
-from abc import ABC, abstractmethod
-from typing import Callable, Union, List, Dict, Any
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-
-class ChatBase(ABC):
-    @abstractmethod  # type: ignore
-    def __call__(self) -> None:
-        pass
-
-    @abstractmethod  # type: ignore
-    def guardrail_endpoint(self) -> None:
-        pass
+import json
+from abc import ABC
+from typing import Callable, Union, Dict, Any, Union
 
 
-class ChatTogetherEndpoint(ChatBase):
+def build_llama2_prompt(messages):
+    startPrompt = "<s>[INST] "
+    endPrompt = " [/INST]"
+    conversation = []
+    for index, message in enumerate(messages):
+        if message["role"] == "system" and index == 0:
+            conversation.append(f"<<SYS>>\n{message['content']}\n<</SYS>>\n\n")
+        elif message["role"] == "user":
+            conversation.append(message["content"].strip())
+        else:
+            conversation.append(f" [/INST] {message['content'].strip()}</s><s>[INST] ")
+
+    return startPrompt + "".join(conversation) + endPrompt
+
+
+class LongerThanContextError(Exception):
+    pass
+
+
+class ChatOpenAICompatible(ABC):
     def __init__(
         self,
-        api_key: Union[str, None] = None,
-        model: str = "togethercomputer/llama-2-70b-chat",
-        max_tokens: int = 1000,
-        stop: Union[List[str], None] = None,
-        temperature: float = 0.7,
-        top_p: float = 0.7,
-        top_k: int = 50,
-        repetition_penalty: float = 1.0,
-        request_timeout: int = 600,
-    ) -> None:
-        # stop
-        if stop is None:
-            self.stop = ["<human>"]
-        # params
-        self.api_key = os.getenv("TOGETHER_API_KEY") if api_key is None else api_key
-        self.model = model
-        self.max_tokens = max_tokens
-        self.temperature = temperature
-        self.top_p = top_p
-        self.top_k = top_k
-        self.repetition_penalty = repetition_penalty
-        self.request_timeout = request_timeout
-        # api related
-        self.end_point = "https://api.together.xyz/inference"
-        # transaction
-        self.headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "Authorization": f"Bearer {self.api_key}",
-        }
-
-    def parse_response(self, response: requests.Response) -> str:
-        return response.json()["output"]["choices"][0]["text"]
-
-    def __call__(self, text: str, **kwargs) -> str:
-        transaction_payload = {
-            "model": self.model,
-            "prompt": f"<human>: {text}\n<bot>:",
-            "stop": [
-                "<human>",
-            ],
-            "max_tokens": self.max_tokens,
-            "temperature": self.temperature,
-            "top_p": self.top_p,
-            "top_k": self.top_k,
-            "repetition_penalty": self.repetition_penalty,
-        }
-
-        response = requests.post(
-            self.end_point,
-            json=transaction_payload,
-            headers=self.headers,
-            timeout=self.request_timeout,
-        )
-        response.raise_for_status()
-
-        return self.parse_response(response)
-
-    def guardrail_endpoint(self) -> Callable[[str], str]:
-        return self
-
-
-class ChatOpenAIEndPoint:
-    def __init__(
-        self,
-        model_name: str = "gpt-4",
-        temperature: float = 0.0,
+        end_point: str,
+        model="tgi",
+        system_message: str = "You are a helpful assistant.",
+        other_parameters: Union[Dict[str, Any], None] = None,
     ):
-        self.model_name = model_name
-        self.temperature = temperature
+        api_key = os.environ.get("OPENAI_API_KEY", "-")
+        self.end_point = end_point
+        self.model = model
+        self.system_message = system_message
+        if self.model.startswith("tgi"):
+            self.headers = {"Content-Type": "application/json"}
+        else:
+            self.headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            }
+            self.other_parameters = {} if other_parameters is None else other_parameters
 
-    def guardrail_endpoint(
-        self, system_message: str = "You are a helpful assistant."
-    ) -> Callable[[str], str]:
-        model_name = self.model_name
-        temperature = self.temperature
+    def parse_response(self, response: httpx.Response) -> str:
+        if self.model.startswith("gpt"):
+            response_out = response.json()
+            return response_out["choices"][0]["message"]["content"]
+        elif self.model.startswith("tgi"):
+            response_out = response.json()
+            return response_out["generated_text"]
+        else:
+            raise NotImplementedError(f"Model {self.model} not implemented")
 
+    def guardrail_endpoint(self) -> Callable:
         def end_point(input: str, **kwargs) -> str:
             input_str = [
-                {"role": "system", "content": system_message},
+                {"role": "system", "content": f"{self.system_message}"},
                 {"role": "user", "content": f"{input}"},
             ]
-            return openai.ChatCompletion.create(  # type: ignore
-                model=model_name, messages=input_str, temperature=temperature
-            )["choices"][
-                0
-            ][  # type: ignore
-                "message"
-            ][  # type: ignore
-                "content"
-            ]  # type: ignore
+
+            if self.model.startswith("tgi"):
+                llama_input_str = build_llama2_prompt(input_str)
+                # print(llama_input_str)
+
+                payload = {
+                    "inputs": llama_input_str,
+                    "parameters": {
+                        "do_sample": True,
+                        "top_p": 0.6,
+                        "temperature": 0.8,
+                        "top_k": 50,
+                        "max_new_tokens": 512,
+                        "repetition_penalty": 1.03,
+                        "stop": ["</s>"],
+                    },
+                }
+
+                # payload = json.dumps(payload)
+                response = httpx.post(
+                    self.end_point, headers=self.headers, json=payload, timeout=600.0  # type: ignore
+                )
+            else:
+                payload = {
+                    "model": self.model,  # or another model like "gpt-4.0-turbo"
+                    "messages": input_str,
+                }
+                payload.update(self.other_parameters)
+                payload = json.dumps(payload)
+
+                response = httpx.post(
+                    self.end_point, headers=self.headers, data=payload, timeout=600.0  # type: ignore
+                )
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if (response.status_code == 422) and (
+                    "must have less than" in response.text
+                ):
+                    raise LongerThanContextError
+                else:
+                    raise e
+
+            return self.parse_response(response)
 
         return end_point
-
-
-def get_chat_end_points(
-    end_point_type: str, chat_config: Dict[str, Any]
-) -> Union[ChatOpenAIEndPoint, ChatTogetherEndpoint]:
-    match end_point_type:
-        case "openai":
-            return ChatOpenAIEndPoint(
-                chat_config["model_name"],
-                chat_config["temperature"],
-            )
-        case "together":
-            return ChatTogetherEndpoint(
-                chat_config.get("api_key"),
-                chat_config["model"],
-                chat_config["max_tokens"],
-                chat_config.get("stop"),
-                chat_config["temperature"],
-                chat_config["top_p"],
-                chat_config["top_k"],
-                chat_config["repetition_penalty"],
-                chat_config["request_timeout"],
-            )
-        case _:
-            raise NotImplementedError(
-                f"Chat end point type {end_point_type} is not implemented."
-            )
