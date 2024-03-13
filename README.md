@@ -151,3 +151,6 @@ When the program stopped due to exceptions(OpenAI API is not stable, etc.), the 
 │ --help                            Show this message and exit.                                                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=pipiku915/FinMem-LLM-StockTrading&type=Date)](https://star-history.com/#pipiku915/FinMem-LLM-StockTrading&Date)
