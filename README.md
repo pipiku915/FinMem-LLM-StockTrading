@@ -20,7 +20,7 @@ This repo provides the Python source code for the paper:
       primaryClass={q-fin.CP}
 }
 ```
-**📢 Update (Date: 01-06-2024)**
+**📢 Update (Date: 01-16-2024)**
 
 🚀 We're excited to share that our work, "FINMEM: A Performance-Enhanced LLM Trading Agent with Layered Memory and Character Design," has been selected for an extended abstract at the AAAI Spring Symposium on Human-Like Learning!
 
