@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "finmem"
+version = "0.0.0"
+description = ""
+authors = ["Haohang Li <hli113@stevens.edu>"]
+
+[[tool.poetry.source]]
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "supplemental"
+
+[tool.poetry.dependencies]
+python = ">= 3.10, < 3.11"
+tqdm = "^4.66.1"
+python-dotenv = "^1.0.1"
+rich = "^13.7.0"
+toml = "^0.10.2"
+typer = "^0.9.0"
+httpx = "^0.26.0"
+sortedcontainers = "^2.4.0"
+faiss-cpu = "^1.7.4"
+guardrails-ai = "^0.3.2"
+numpy = "^1.26.3"
+annotated-types = "^0.6.0"
+polars = "^0.20.5"
+langchain-community = "^0.0.15"
+torch = {version = "^2.2.0+cpu", source = "torch-cpu"}
+transformers = "^4.37.2"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
