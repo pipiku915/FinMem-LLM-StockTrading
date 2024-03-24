@@ -1,0 +1,54 @@
+[chat]
+model = "gpt-3.5-turbo-0125"
+end_point = "https://api.openai.com/v1/chat/completions"
+system_message = "You are a helpful assistant."
+
+
+[general]
+top_k = 3
+agent_name = "agent_1"
+look_back_window_size = 7
+trading_symbol = "TSLA"
+character_string = '''
+You accumuate a lot of informaion of the following sectors so you are especially good at trading them:
+(1)Electric Vehicles (Automotive Sector).
+(2) Energy Generation and Storage.
+(3) Autonomous Driving and AI Technology.
+(4) Battery Production and Development.
+(5) Software and Services.
+(6) Information Technology.
+
+You are an expert of TSLA.
+From year 2021 to 2022 September, Tesla's continued growth and solid financial performance over the defined period, despite certain quarters where revenue missed Wall Street expectations.
+'''
+
+
+[agent.agent_1.embedding.detail]
+embedding_model = "text-embedding-ada-002"
+chunk_size=5000
+verbose=false
+
+
+[short]
+importance_score_initialization = "sample"
+decay_params = {recency_factor=3.0, importance_factor=0.92}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+jump_threshold_upper = 60
+
+[mid]
+jump_threshold_lower = 60
+jump_threshold_upper = 80 
+importance_score_initialization = "sample"
+decay_params = {recency_factor=90.0, importance_factor=0.967}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+
+[long]
+jump_threshold_lower = 80
+importance_score_initialization = "sample"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}
+
+[reflection]
+importance_score_initialization = "sample"
+decay_params = {recency_factor=365.0, importance_factor=0.988}
+clean_up_threshold_dict = {recency_threshold=0.05, importance_threshold=5}

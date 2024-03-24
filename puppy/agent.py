@@ -19,7 +19,7 @@ class TextTruncator:
         self.tokenization_model_name = tokenization_model_name
         self.token = os.environ.get("HF_TOKEN", None)
         self.tokenizer = AutoTokenizer.from_pretrained(
-            self.model_name, use_auth_token=self.token
+            self.tokenization_model_name, auth_token=self.token
         )
 
     def _tokenize_cnt_texts(self, input_text):
@@ -102,10 +102,6 @@ class LLMAgent(Agent):
         self.trading_symbol = trading_symbol
         self.character_string = character_string
         self.look_back_window_size = look_back_window_size
-        # truncator
-        self.truncator = TextTruncator(
-            tokenization_model_name=chat_config["tokenization_model_name"]
-        )
         # logger
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.INFO)
@@ -133,7 +129,8 @@ class LLMAgent(Agent):
         chat_config = chat_config.copy()
         end_point = chat_config["end_point"]
         model = chat_config["model"]
-        system_message = chat_config["system_message"]
+        system_message = chat_config["system_message"]# truncator
+        self.model_name = chat_config["model"]
         self.max_token_short = chat_config.get("max_token_short", None)
         self.max_token_mid = chat_config.get("max_token_mid", None)
         self.max_token_long = chat_config.get("max_token_long", None)
@@ -142,13 +139,9 @@ class LLMAgent(Agent):
         del chat_config["model"]
         del chat_config["system_message"]
         if self.max_token_short:
-            del chat_config["max_token_short"]
-        if self.max_token_mid:
-            del chat_config["max_token_mid"]
-        if self.max_token_long:
-            del chat_config["max_token_long"]
-        if self.max_token_reflection:
-            del chat_config["max_token_reflection"]
+            self.truncator = TextTruncator(
+                tokenization_model_name=chat_config["tokenization_model_name"]
+            )
         self.guardrail_endpoint = ChatOpenAICompatible(
             end_point=end_point,
             model=model,
@@ -188,57 +181,76 @@ class LLMAgent(Agent):
             self.brain.add_memory_short(
                 symbol=self.trading_symbol, date=cur_date, text=news
             )
-
+    
     def __query_info_for_reflection(self, run_mode: RunMode):
+        # sourcery skip: low-code-quality
         self.logger.info(f"Symbol: {self.trading_symbol}\n")
         cur_short_queried, cur_short_memory_id = self.brain.query_short(
             query_text=self.character_string,
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        cur_short_queried_truc, cur_short_num_tokens = (
-            self.truncator.process_list_of_texts(
-                cur_short_queried, max_total_tokens=self.max_token_short
+        if self.model_name.startswith("tgi"):
+            cur_short_queried_truc, cur_short_num_tokens = (
+                self.truncator.process_list_of_texts(
+                    cur_short_queried, max_total_tokens=self.max_token_short
+                )
             )
-        )
-        cur_short_memory_id_truc = [
-            cur_short_memory_id[k] for k in range(len(cur_short_queried_truc))
-        ]
-        for cur_id, cur_memory in zip(cur_short_memory_id_truc, cur_short_queried_truc):
-            self.logger.info(f"Top-k Short: {cur_id}: {cur_memory}\n")
-        self.logger.info(f"Total tokens of Short Memory: {cur_short_num_tokens}\n")
+            cur_short_memory_id_truc = [
+                cur_short_memory_id[k] for k in range(len(cur_short_queried_truc))
+            ]
+            for cur_id, cur_memory in zip(
+                cur_short_memory_id_truc, cur_short_queried_truc
+            ):
+                self.logger.info(f"Top-k Short: {cur_id}: {cur_memory}\n")
+            self.logger.info(f"Total tokens of Short Memory: {cur_short_num_tokens}\n")
+        else:
+            for cur_id, cur_memory in zip(cur_short_memory_id, cur_short_queried):
+                self.logger.info(f"Top-k Short: {cur_id}: {cur_memory}\n")
 
         cur_mid_queried, cur_mid_memory_id = self.brain.query_mid(
             query_text=self.character_string,
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        cur_mid_queried_truc, cur_mid_num_tokens = self.truncator.process_list_of_texts(
-            cur_mid_queried, max_total_tokens=self.max_token_mid
-        )
-        cur_mid_memory_id_truc = [
-            cur_mid_memory_id[k] for k in range(len(cur_mid_queried_truc))
-        ]
-        for cur_id, cur_memory in zip(cur_mid_memory_id_truc, cur_mid_queried_truc):
-            self.logger.info(f"Top-k Mid: {cur_id}: {cur_memory}\n")
-        self.logger.info(f"Total tokens of Middle Memory: {cur_mid_num_tokens}\n")
+        if self.model_name.startswith("tgi"):
+            cur_mid_queried_truc, cur_mid_num_tokens = (
+                self.truncator.process_list_of_texts(
+                    cur_mid_queried, max_total_tokens=self.max_token_mid
+                )
+            )
+            cur_mid_memory_id_truc = [
+                cur_mid_memory_id[k] for k in range(len(cur_mid_queried_truc))
+            ]
+            for cur_id, cur_memory in zip(cur_mid_memory_id_truc, cur_mid_queried_truc):
+                self.logger.info(f"Top-k Mid: {cur_id}: {cur_memory}\n")
+            self.logger.info(f"Total tokens of Middle Memory: {cur_mid_num_tokens}\n")
+        else:
+            for cur_id, cur_memory in zip(cur_mid_memory_id, cur_mid_queried):
+                self.logger.info(f"Top-k Mid: {cur_id}: {cur_memory}\n")
 
         cur_long_queried, cur_long_memory_id = self.brain.query_long(
             query_text=self.character_string,
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        cur_long_queried_truc, cur_long_num_tokens = (
-            self.truncator.process_list_of_texts(
-                cur_long_queried, max_total_tokens=self.max_token_long
+        if self.model_name.startswith("tgi"):
+            cur_long_queried_truc, cur_long_num_tokens = (
+                self.truncator.process_list_of_texts(
+                    cur_long_queried, max_total_tokens=self.max_token_long
+                )
             )
-        )
-        cur_long_memory_id_truc = [
-            cur_long_memory_id[k] for k in range(len(cur_long_queried_truc))
-        ]
-        for cur_id, cur_memory in zip(cur_long_memory_id_truc, cur_long_queried_truc):
-            self.logger.info(f"Top-k Long: {cur_id}: {cur_memory}\n")
-        self.logger.info(f"Total tokens of Long Memory: {cur_long_num_tokens}\n")
+            cur_long_memory_id_truc = [
+                cur_long_memory_id[k] for k in range(len(cur_long_queried_truc))
+            ]
+            for cur_id, cur_memory in zip(
+                cur_long_memory_id_truc, cur_long_queried_truc
+            ):
+                self.logger.info(f"Top-k Long: {cur_id}: {cur_memory}\n")
+            self.logger.info(f"Total tokens of Long Memory: {cur_long_num_tokens}\n")
+        else:
+            for cur_id, cur_memory in zip(cur_long_memory_id, cur_long_queried):
+                self.logger.info(f"Top-k Long: {cur_id}: {cur_memory}\n")
 
         (
             cur_reflection_queried,
@@ -248,30 +260,37 @@ class LLMAgent(Agent):
             top_k=self.top_k,
             symbol=self.trading_symbol,
         )
-        cur_reflection_queried_truc, cur_reflection_num_tokens = (
-            self.truncator.process_list_of_texts(
-                cur_reflection_queried,
-                max_total_tokens=self.max_token_reflection
+        if self.model_name.startswith("tgi"):
+            cur_reflection_queried_truc, cur_reflection_num_tokens = (
+                self.truncator.process_list_of_texts(
+                    cur_reflection_queried, max_total_tokens=self.max_token_reflection
+                )
             )
-        )
-        cur_reflection_memory_id_truc = [
-            cur_reflection_memory_id[k] for k in range(len(cur_reflection_queried_truc))
-        ]
+            cur_reflection_memory_id_truc = [
+                cur_reflection_memory_id[k]
+                for k in range(len(cur_reflection_queried_truc))
+            ]
+            for cur_id, cur_memory in zip(
+                cur_reflection_memory_id_truc, cur_reflection_queried_truc
+            ):
+                self.logger.info(f"Top-k Reflection: {cur_id}: {cur_memory}\n")
+            self.logger.info(
+                f"Total tokens of Reflection Memory: {cur_reflection_num_tokens}\n"
+            )
+        else:
+            for cur_id, cur_memory in zip(
+                cur_reflection_memory_id, cur_reflection_queried
+            ):
+                self.logger.info(f"Top-k Reflection: {cur_id}: {cur_memory}\n")
 
-        for cur_id, cur_memory in zip(
-            cur_reflection_memory_id_truc, cur_reflection_queried_truc
-        ):
-            self.logger.info(f"Top-k Reflection: {cur_id}: {cur_memory}\n")
-        self.logger.info(
-            f"Total tokens of Reflection Memory: {cur_reflection_num_tokens}\n"
-        )
-        cur_all_num_tokens = (
-            cur_short_num_tokens
-            + cur_mid_num_tokens
-            + cur_long_num_tokens
-            + cur_reflection_num_tokens
-        )
-        self.logger.info(f"Total tokens of **ALL** Memory: {cur_all_num_tokens}\n")
+        if self.model_name.startswith("tgi"):
+            cur_all_num_tokens = (
+                cur_short_num_tokens
+                + cur_mid_num_tokens
+                + cur_long_num_tokens
+                + cur_reflection_num_tokens
+            )
+            self.logger.info(f"Total tokens of **ALL** Memory: {cur_all_num_tokens}\n")
 
         # extra config in test
         if run_mode == RunMode.Test:
@@ -281,28 +300,53 @@ class LLMAgent(Agent):
             )
 
         if run_mode == RunMode.Train:
-            return (
-                cur_short_queried_truc,
-                cur_short_memory_id_truc,
-                cur_mid_queried_truc,
-                cur_mid_memory_id_truc,
-                cur_long_queried_truc,
-                cur_long_memory_id_truc,
-                cur_reflection_queried_truc,
-                cur_reflection_memory_id_truc,
-            )
+            if self.model_name.startswith("tgi"):
+                return (
+                    cur_short_queried_truc,
+                    cur_short_memory_id_truc,
+                    cur_mid_queried_truc,
+                    cur_mid_memory_id_truc,
+                    cur_long_queried_truc,
+                    cur_long_memory_id_truc,
+                    cur_reflection_queried_truc,
+                    cur_reflection_memory_id_truc,
+                )
+            else:
+                return (
+                    cur_short_queried,
+                    cur_short_memory_id,
+                    cur_mid_queried,
+                    cur_mid_memory_id,
+                    cur_long_queried,
+                    cur_long_memory_id,
+                    cur_reflection_queried,
+                    cur_reflection_memory_id,
+                )
         elif run_mode == RunMode.Test:
-            return (
-                cur_short_queried_truc,
-                cur_short_memory_id_truc,
-                cur_mid_queried_truc,
-                cur_mid_memory_id_truc,
-                cur_long_queried_truc,
-                cur_long_memory_id_truc,
-                cur_reflection_queried_truc,
-                cur_reflection_memory_id_truc,
-                cur_moment,  # type: ignore
-            )
+            if self.model_name.startswith("tgi"):
+                return (
+                    cur_short_queried_truc,
+                    cur_short_memory_id_truc,
+                    cur_mid_queried_truc,
+                    cur_mid_memory_id_truc,
+                    cur_long_queried_truc,
+                    cur_long_memory_id_truc,
+                    cur_reflection_queried_truc,
+                    cur_reflection_memory_id_truc,
+                    cur_moment,  # type: ignore
+                )
+            else:
+                return (
+                    cur_short_queried,
+                    cur_short_memory_id,
+                    cur_mid_queried,
+                    cur_mid_memory_id,
+                    cur_long_queried,
+                    cur_long_memory_id,
+                    cur_reflection_queried,
+                    cur_reflection_memory_id,
+                    cur_moment,  # type: ignore
+                )
 
     def __reflection_on_record(
         self,
@@ -470,16 +514,17 @@ class LLMAgent(Agent):
             )
 
     def __update_access_counter_sub(self, cur_memory, layer_index_name, feedback):
-        cur_ids = []
-        for i in cur_memory[layer_index_name]:
-            cur_id = i["memory_index"]
-            if cur_id not in cur_ids:
-                cur_ids.append(cur_id)
-        self.brain.update_access_count_with_feed_back(
-            symbol=self.trading_symbol,
-            ids=cur_ids,
-            feedback=feedback["feedback"],
-        )
+        if cur_memory[layer_index_name] is not None:
+            cur_ids = []
+            for i in cur_memory[layer_index_name]:
+                cur_id = i["memory_index"]
+                if cur_id not in cur_ids:
+                    cur_ids.append(cur_id)
+            self.brain.update_access_count_with_feed_back(
+                symbol=self.trading_symbol,
+                ids=cur_ids,
+                feedback=feedback["feedback"],
+            )
 
     @staticmethod
     def __process_test_action(test_reflection_result: Dict[str, Any]) -> Dict[str, int]:

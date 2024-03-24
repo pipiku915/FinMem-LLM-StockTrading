@@ -37,7 +37,7 @@ class MemoryDB:  # can possibly take multiple symbols
         jump_threshold_upper: float,
         jump_threshold_lower: float,
         logger: logging.Logger,
-        embedding_function: OpenAILongerThanContextEmb,
+        emb_config: Dict[str, Any],
         importance_score_initialization: ImportanceScoreInitialization,
         recency_score_initialization: R_ConstantInitialization,
         compound_score_calculation: LinearCompoundScore,
@@ -52,8 +52,10 @@ class MemoryDB:  # can possibly take multiple symbols
         self.id_generator = id_generator
         self.jump_threshold_upper = jump_threshold_upper
         self.jump_threshold_lower = jump_threshold_lower
-        self.emb_dim = embedding_function.get_embedding_dimension()
-        self.emb_func = embedding_function
+        self.emb_config = emb_config
+        self.emb_func = OpenAILongerThanContextEmb(**self.emb_config)
+        # self.emb_func = OpenAILongerThanContextEmb(**self.config["agent"]["agent_1"]["embedding"]["detail"])
+        self.emb_dim = self.emb_func.get_embedding_dimension()
         self.importance_score_initialization_func = importance_score_initialization
         self.recency_score_initialization_func = recency_score_initialization
         self.compound_score_calculation_func = compound_score_calculation
@@ -65,29 +67,6 @@ class MemoryDB:  # can possibly take multiple symbols
         # records
         self.universe = {}
         self.logger = logger
-
-    # @classmethod
-    # def from_config(
-    #     cls, config: Dict[str, Any], agent_name: str, memory_layer: str
-    # ) -> "MemoryDB":
-    #     return cls(
-    #         db_name=f"{agent_name}_{memory_layer}",
-    #         id_generator=id_generator_func(),
-    #         jump_threshold_upper=config[memory_layer]["jump_threshold_upper"],
-    #         jump_threshold_lower=config[memory_layer]["jump_threshold_lower"],
-    #         embedding_function=OpenAILongerThanContextEmb(**config["embedding"]),
-    #         importance_score_initialization=get_importance_score_initialization_func(
-    #             type=config[memory_layer]["importance_score_initialization_type"],
-    #             memory_layer=memory_layer,
-    #         ),
-    #         recency_score_initialization=R_ConstantInitialization(),
-    #         compound_score_calculation=LinearCompoundScore(),
-    #         decay_function=ExponentialDecay(
-    #             **config[memory_layer]["decay_params"],
-    #         ),
-    #         clean_up_threshold_dict=config[memory_layer]["clean_up_threshold_dict"],
-    #         importance_score_change_access_counter=LinearImportanceScoreChange(),
-    #     )
 
     def add_new_symbol(self, symbol: str) -> None:
         cur_index = faiss.IndexFlatIP(
@@ -384,7 +363,6 @@ class MemoryDB:  # can possibly take multiple symbols
                 self.add_new_symbol(cur_symbol)
             new_ids = []
             for cur_object in jump_dict[cur_symbol]["jump_object_list"]:
-                # new_ids.append(self.id_generator())
                 new_ids.append(cur_object["id"])
                 # cur_object["id"] = new_ids[-1]
                 if direction == "up":
@@ -412,7 +390,7 @@ class MemoryDB:  # can possibly take multiple symbols
             "jump_threshold_upper": self.jump_threshold_upper,
             "jump_threshold_lower": self.jump_threshold_lower,
             "emb_dim": self.emb_dim,
-            "emb_func": self.emb_func,
+            "emb_config": self.emb_config,
             "importance_score_initialization_func": self.importance_score_initialization_func,
             "recency_score_initialization_func": self.recency_score_initialization_func,
             "compound_score_calculation_func": self.compound_score_calculation_func,
@@ -461,7 +439,7 @@ class MemoryDB:  # can possibly take multiple symbols
             id_generator=state_dict["id_generator"],
             jump_threshold_upper=state_dict["jump_threshold_upper"],
             jump_threshold_lower=state_dict["jump_threshold_lower"],
-            embedding_function=state_dict["emb_func"],
+            emb_config = state_dict["emb_config"],
             importance_score_initialization=state_dict[
                 "importance_score_initialization_func"
             ],
@@ -484,8 +462,8 @@ class BrainDB:
     def __init__(
         self,
         agent_name: str,
+        emb_config: Dict[str, Any],
         id_generator: id_generator_func,
-        embedding_function: OpenAILongerThanContextEmb,
         short_term_memory: MemoryDB,
         mid_term_memory: MemoryDB,
         long_term_memory: MemoryDB,
@@ -494,7 +472,7 @@ class BrainDB:
         use_gpu: bool = True,
     ):
         self.agent_name = agent_name
-        self.embedding_function = embedding_function
+        self.emb_config = emb_config
         self.use_gpu = use_gpu
         self.id_generator = id_generator
         # memory layers
@@ -510,9 +488,6 @@ class BrainDB:
     def from_config(cls, config: Dict[str, Any]) -> "BrainDB":
         # other states
         id_generator = id_generator_func()
-        embedding_function = OpenAILongerThanContextEmb(
-            **config["agent"]["agent_1"]["embedding"]["detail"]
-        )
         agent_name = config["general"]["agent_name"]
         # logger
         logger = logging.getLogger(__name__)
@@ -531,13 +506,14 @@ class BrainDB:
         )
         file_handler.setFormatter(logging_formatter)
         logger.addHandler(file_handler)
+        emb_config = config["agent"]["agent_1"]["embedding"]["detail"]
         # memory layers
         short_term_memory = MemoryDB(
             db_name=f"{agent_name}_short",
             id_generator=id_generator,
+            emb_config=emb_config,
             jump_threshold_upper=config["short"]["jump_threshold_upper"],
             jump_threshold_lower=-999999999,  # no lower bound
-            embedding_function=embedding_function,
             importance_score_initialization=get_importance_score_initialization_func(
                 type=config["short"]["importance_score_initialization"],
                 memory_layer="short",
@@ -556,7 +532,7 @@ class BrainDB:
             id_generator=id_generator,
             jump_threshold_upper=config["mid"]["jump_threshold_upper"],
             jump_threshold_lower=config["mid"]["jump_threshold_lower"],
-            embedding_function=embedding_function,
+            emb_config=emb_config,
             importance_score_initialization=get_importance_score_initialization_func(
                 type=config["mid"]["importance_score_initialization"],
                 memory_layer="mid",
@@ -573,7 +549,7 @@ class BrainDB:
             id_generator=id_generator,
             jump_threshold_upper=999999999,  # no upper bound
             jump_threshold_lower=config["long"]["jump_threshold_lower"],
-            embedding_function=embedding_function,
+            emb_config=emb_config,
             importance_score_initialization=get_importance_score_initialization_func(
                 type=config["long"]["importance_score_initialization"],
                 memory_layer="long",
@@ -592,7 +568,7 @@ class BrainDB:
             id_generator=id_generator,
             jump_threshold_upper=999999999,  # no upper bound
             jump_threshold_lower=-999999999,  # no lower bound
-            embedding_function=embedding_function,
+            emb_config=emb_config,
             importance_score_initialization=get_importance_score_initialization_func(
                 type=config["reflection"]["importance_score_initialization"],
                 memory_layer="reflection",
@@ -607,9 +583,9 @@ class BrainDB:
             logger=logger,
         )
         return cls(
+            emb_config=emb_config,
             agent_name=agent_name,
             id_generator=id_generator,
-            embedding_function=embedding_function,
             short_term_memory=short_term_memory,
             mid_term_memory=mid_term_memory,
             long_term_memory=long_term_memory,
@@ -801,10 +777,9 @@ class BrainDB:
         # save state dict
         state_dict = {
             "agent_name": self.agent_name,
-            "use_gpu": self.use_gpu,
-            "emb_func": self.embedding_function,
-            "id_generator": self.id_generator,
+            "emb_config": self.emb_config,
             "removed_ids": self.removed_ids,
+            "id_generator": self.id_generator,
             "logger": self.logger,
         }
         with open(os.path.join(path, "state_dict.pkl"), "wb") as f:
@@ -844,10 +819,10 @@ class BrainDB:
         return cls(
             agent_name=state_dict["agent_name"],
             id_generator=state_dict["id_generator"],
-            embedding_function=state_dict["emb_func"],
             short_term_memory=short_term_memory,
             mid_term_memory=mid_term_memory,
             long_term_memory=long_term_memory,
             reflection_memory=reflection_memory,
             logger=state_dict["logger"],
+            emb_config=state_dict["emb_config"]
         )

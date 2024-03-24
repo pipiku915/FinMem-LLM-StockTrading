@@ -1,3 +1,5 @@
+# !pip install clean-text
+
 # parameters
 NUM_WORKERS = 1
 ENDPOINT_URL = "https://api.sec-api.io?token={SEC_KEY}"
@@ -253,14 +255,7 @@ def request_content(filings: List[str], sections: List[str]) -> List[str]:
 
 if __name__ == "__main__":
     # load data
-    price_data = pl.read_parquet(
-        os.path.join("data", "03_primary", "price_data.parquet")
-    )
-    price_data = price_data.filter(
-        (pl.col("est_time").dt.date() >= datetime.strptime(START_DATE, "%Y-%m-%d"))
-        & (pl.col("est_time").dt.date() <= datetime.strptime(END_DATE, "%Y-%m-%d"))
-    )
-    unique_equities = price_data["equity"].unique().to_list()
+    unique_equities = ['''Enter the tickers you want to download here as a list of str''']
 
     # get file index
     ten_k_index_table = get_index(unique_equities, "10-K")

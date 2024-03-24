@@ -26,7 +26,6 @@ from .prompts import (
     test_sentiment_explanation,
     test_momentum_explanation,
 )
-import transformers
 
 
 def _train_memory_factory(memory_layer: str, id_list: List[int]):
@@ -442,14 +441,15 @@ def trading_reflection(
             not isinstance(validated_outcomes.validated_output, dict)
         ):
             logger.info(f"reflection failed for {symbol}")
-            return {}
+            if run_mode == RunMode.Train:
+                return {"summary_reason": validated_outcomes.__dict__['reask'].__dict__['fail_results'][0].__dict__['error_message'], "short_memory_index": None, "middle_memory_index": None, "long_memory_index": None, "reflection_memory_index": None}
+            else:
+                return {"investment_decision" : "hold", "summary_reason": validated_outcomes.__dict__['reask'].__dict__['fail_results'][0].__dict__['error_message'], "short_memory_index": None, "middle_memory_index": None, "long_memory_index": None, "reflection_memory_index": None}
         return _delete_placeholder_info(validated_outcomes.validated_output)
 
     except Exception as e:
-        # print(guard.history.last.tree)
         if isinstance(e.__context__, LongerThanContextError):
-            raise LongerThanContextError
-        else:
-            # raise e
-            logger.info(f"Wrong again!!!!!")
-            return _delete_placeholder_info({})
+            raise LongerThanContextError from e
+        logger.info("Wrong again!!!!!")
+        logger.error(e)
+        return _delete_placeholder_info({})

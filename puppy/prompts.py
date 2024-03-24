@@ -34,22 +34,20 @@ train_prompt = """Given the following information, can you explain to me why the
     ${investment_info}
 
     ${gr.complete_json_suffix_v2}
+    Your output should strictly conforms the following json format without any additional contents: {"summary_reason": string, "short_memory_index": number, "middle_memory_index": number, "long_memory_index": number, "reflection_memory_index": number}
 """
 # When cumulative return is positive or zero, you are a risk-seeking investor, positive information have a greater influence on your investment decisions, while negative information have a lesser impact.
 # But when cumulative return is negative, you are a risk-averse investor, negative information have a greater influence on your investment decisions, while positive information have a lesser impact.
-test_prompt = """ Given the information, can you make an investment decision? Just summarize the reason of the decision。
+test_prompt = """ Given the information, can you make an investment decision? Just summarize the reason of the decision.
     please consider only the available short-term information, the mid-term information, the long-term information, the reflection-term information.
     please consider the momentum of the historical stock price.
     When cumulative return is positive or zero, you are a risk-seeking investor.
-    But when cumulative return is negative, you are a risk-averse investor. 
     please consider how much share of the stock the investor holds now.   
     You should provide exactly one of the following investment decisions: buy or sell.
     When it is really hard to make a 'buy'-or-'sell' decision, you could go with 'hold' option.
-    You also need to provide the id of the information to support your decision. 
-    
+    You also need to provide the id of the information to support your decision.
 
     ${investment_info}
 
-    ${gr.complete_json_suffix_v2}    
-
+    ${gr.complete_json_suffix_v2} }
 """

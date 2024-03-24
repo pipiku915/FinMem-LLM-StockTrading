@@ -79,7 +79,11 @@ class MarketEnvironment:
         future_price = self.env_data[future_date]["price"]
         cur_filing_k = self.env_data[self.cur_date]["filing_k"]
         cur_filing_q = self.env_data[self.cur_date]["filing_q"]
-        cur_news = self.env_data[self.cur_date]["news"]
+        if self.env_data[self.cur_date]["news"] != {}:
+            cur_news = self.env_data[self.cur_date]["news"]
+        else:
+            cur_news = {self.symbol: ''}
+            
         cur_record = {
             symbol: future_price[symbol] - cur_price[symbol]  # type: ignore
             for symbol in cur_price  # type: ignore

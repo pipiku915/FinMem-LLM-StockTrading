@@ -1,0 +1,24 @@
+image:
+  file: .devcontainer/Dockerfile
+
+vscode:
+  extensions:
+    - aliariff.auto-add-brackets
+    - aaron-bond.better-comments
+    - usernamehw.errorlens
+    - file-icons.file-icons
+    - eamodio.gitlens
+    - oderwat.indent-rainbow
+    - ms-toolsai.jupyter
+    - DavidAnson.vscode-markdownlint
+    - GulajavaMinistudio.mayukaithemevsc
+    - christian-kohler.path-intellisense
+    - ms-python.python
+    - donjayamanne.python-environment-manager
+    - donjayamanne.python-extension-pack
+    - mechatroner.rainbow-csv
+    - sourcery.sourcery
+    - wayou.vscode-todo-highlight
+    - ms-python.pylint
+    - mgesbert.python-path
+    - franneck94.vscode-python-dev-extension-pack

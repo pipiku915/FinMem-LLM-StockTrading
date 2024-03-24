@@ -4,6 +4,11 @@ version = "0.0.0"
 description = ""
 authors = ["Haohang Li <hli113@stevens.edu>"]
 
+[[tool.poetry.source]]
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "supplemental"
+
 [tool.poetry.dependencies]
 python = ">= 3.10, < 3.11"
 tqdm = "^4.66.1"
@@ -19,6 +24,8 @@ numpy = "^1.26.3"
 annotated-types = "^0.6.0"
 polars = "^0.20.5"
 langchain-community = "^0.0.15"
+torch = {version = "^2.2.0+cpu", source = "torch-cpu"}
+transformers = "^4.37.2"
 
 [tool.poetry.dev-dependencies]
 

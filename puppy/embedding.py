@@ -1,8 +1,7 @@
 import os
-import asyncio
 import numpy as np
 from typing import List, Union
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 
 
 class OpenAILongerThanContextEmb:
@@ -40,7 +39,7 @@ class OpenAILongerThanContextEmb:
             show_progress_bar=verbose,
         )
 
-    async def _emb(self, text: Union[List[str], str]) -> List[List[float]]:
+    def _emb(self, text: Union[List[str], str]) -> List[List[float]]:
         """
         Asynchronously performs embedding on a list of text.
 
@@ -56,7 +55,7 @@ class OpenAILongerThanContextEmb:
         """
         if isinstance(text, str):
             text = [text]
-        return await self.emb_model.aembed_documents(texts=text, chunk_size=None)
+        return self.emb_model.embed_documents(texts=text, chunk_size=None)
 
     def __call__(self, text: Union[List[str], str]) -> np.ndarray:
         """
@@ -72,7 +71,7 @@ class OpenAILongerThanContextEmb:
             np.array: The embedding of the input text as a NumPy array.
 
         """
-        return np.array(asyncio.run(self._emb(text))).astype("float32")
+        return np.array(self._emb(text)).astype("float32")
 
     def get_embedding_dimension(self):
         """
