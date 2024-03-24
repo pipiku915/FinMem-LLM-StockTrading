@@ -10,11 +10,11 @@ python run.py sim \
 -et 2022-10-07 \
 -rm train \
 -cp config/tsla_gemini_config.toml \
--ckp /workspace/ofcourseistillloveyou-exp/data/06_train_checkpoint \
+-ckp /workspace/FinMem-LLM-StockTrading/data/06_train_checkpoint \
 -rp data/05_train_model_output
 # # train-checkpoint
 # python run.py sim-checkpoint \
-# -ckp /workspace/ofcourseistillloveyou-exp/data/06_train_checkpoint \
+# -ckp /workspace/FinMem-LLM-StockTrading/data/06_train_checkpoint \
 # -rp data/05_train_model_output \
 # -cp config/tsla_gemini_config.toml \
 # -rm train
@@ -32,7 +32,7 @@ python run.py sim \
 # -rp ./data/09_results
 # # test-checkpoint
 # python run.py sim-checkpoint \
-# -ckp /workspace/ofcourseistillloveyou-exp/data/06_train_checkpoint \
+# -ckp /workspace/FinMem-LLM-StockTrading/data/06_train_checkpoint \
 # -rp data/05_train_model_output \
 # -cp config/tsla_gemini_config.toml \
 # -rm test
