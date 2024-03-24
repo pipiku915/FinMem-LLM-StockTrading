@@ -20,22 +20,22 @@ warnings.filterwarnings("ignore")
 @app.command("sim", help="Start Simulation", rich_help_panel="Simulation")
 def sim_func(
     market_data_info_path: str = typer.Option(
-        os.path.join("data", "03_model_input", "tsla.pkl"),
+        os.path.join("data", "03_model_input", "amzn.pkl"),
         "-mdp",
         "--market-data-path",
         help="The environment data pickle path",
     ),
     start_time: str = typer.Option(
-        "2022-06-30", "-st", "--start-time", help="The start time"
+        "2022-08-16", "-st", "--start-time", help="The start time"
     ),
     end_time: str = typer.Option(
-        "2022-10-11", "-et", "--end-time", help="The end time"
+        "2022-10-04", "-et", "--end-time", help="The end time"
     ),
     run_mode: str = typer.Option(
         "train", "-rm", "--run-model", help="Run mode: train or test"
     ),
     config_path: str = typer.Option(
-        os.path.join("config", "config.toml"),
+        os.path.join("config", "amzn_tgi_config.toml"),
         "-cp",
         "--config-path",
         help="config file path",
@@ -135,7 +135,7 @@ def sim_checkpoint(
         help="The result save path",
     ),
     config_path: str = typer.Option(
-        os.path.join("config", "tsla_config.toml"),
+        os.path.join("config", "aapl_tgi_config.toml"),
         "-cp",
         "--config-path",
         help="config file path",
