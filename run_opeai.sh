@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export OPENAI_API_KEY = "Enter your OpenAI API Key here"
+export OPENAI_API_KEY="Enter your OpenAI API Key here"
 
 # gpt
 # train
