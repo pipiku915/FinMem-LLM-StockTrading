@@ -162,19 +162,19 @@ def _format_memories(
     if (short_memory is None) or len(short_memory) == 0:
         short_memory = ["No short-term information.", "No short-term information."]
         short_memory_id = [-1, -1]
-    else:
+    elif len(short_memory) == 1:
         short_memory = [short_memory[0], short_memory[0]]
         short_memory_id = [short_memory_id[0], short_memory_id[0]]  # type: ignore
     if (mid_memory is None) or len(mid_memory) == 0:
         mid_memory = ["No mid-term information.", "No mid-term information."]
         mid_memory_id = [-1, -1]
-    else:
+    elif len(mid_memory) == 1:
         mid_memory = [mid_memory[0], mid_memory[0]]
         mid_memory_id = [mid_memory_id[0], mid_memory_id[0]]  # type: ignore
     if (long_memory is None) or len(long_memory) == 0:
         long_memory = ["No long-term information.", "No long-term information."]
         long_memory_id = [-1, -1]
-    else:
+    elif len(long_memory) == 1:
         long_memory = [long_memory[0], long_memory[0]]
         long_memory_id = [long_memory_id[0], long_memory_id[0]]  # type: ignore
     if (reflection_memory is None) or len(reflection_memory) == 0:
@@ -183,7 +183,7 @@ def _format_memories(
             "No reflection-term information.",
         ]
         reflection_memory_id = [-1, -1]
-    else:
+    elif len(reflection_memory) == 1:
         reflection_memory = [reflection_memory[0], reflection_memory[0]]
         reflection_memory_id = [reflection_memory_id[0], reflection_memory_id[0]]  # type: ignore
 
