@@ -288,7 +288,7 @@ def _train_response_model_invest_info(
     if reflection_memory:
         investment_info += "The reflection-term information:\n"
         investment_info += "\n".join(
-            [f"{i[0]}. {i[1]}" for i in enumerate(reflection_memory, 1)]
+            [f"{i[0]}. {i[1].strip()}" for i in zip(reflection_memory_id, reflection_memory)]
         )
         investment_info += "\n\n"
 
@@ -341,7 +341,7 @@ def _test_response_model_invest_info(
     if reflection_memory:
         investment_info += "The reflection-term information:\n"
         investment_info += "\n".join(
-            [f"{i[0]}. {i[1]}" for i in enumerate(reflection_memory, 1)]
+            [f"{i[0]}. {i[1].strip()}" for i in zip(reflection_memory_id, reflection_memory)]
         )
         investment_info += "\n\n"
     if momentum:
